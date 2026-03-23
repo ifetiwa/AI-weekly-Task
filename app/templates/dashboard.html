@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="subtitle">Weekly Tech Checklist — automated checks &amp; integrations</p>
+  </div>
+  {% if sites %}
+  <form id="site-selector-form" style="display:flex;align-items:center;gap:8px">
+    <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">Target Site:</label>
+    <select id="global-site" name="site_id" class="form-control" style="width:auto;min-width:180px;padding:6px 10px;font-size:.78rem">
+      <option value="">— select site —</option>
+      {% for s in sites %}
+      <option value="{{ s.id }}">{{ s.name }} ({{ s.url }})</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+<!-- ═══ Stats Row ═══ -->
+<div class="stats-row">
+  <div class="stat-card" style="--card-accent:#60a5fa">
+    <div class="stat-value">{{ total_sites }}</div>
+    <div class="stat-label">Sites Monitored</div>
+    <span class="stat-icon">&#127760;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--green)">
+    <div class="stat-value">{{ success_today }}</div>
+    <div class="stat-label">Checks Passed Today</div>
+    <span class="stat-icon">&#9989;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--red)">
+    <div class="stat-value">{{ total_today - success_today }}</div>
+    <div class="stat-label">Issues Today</div>
+    <span class="stat-icon">&#9888;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--purple)">
+    <div class="stat-value">{{ total_integrations }}</div>
+    <div class="stat-label">API Integrations</div>
+    <span class="stat-icon">&#128268;</span>
+  </div>
+</div>
+
+{% if not sites and not integrations %}
+<!-- ═══ Getting Started ═══ -->
+<div class="card">
+  <div class="card-body empty-state">
+    <div class="empty-icon">&#128640;</div>
+    <p>Welcome! Start by adding your websites and API integrations.</p>
+    <a href="{{ url_for('integrations.add_site') }}" class="btn btn-primary">Add Your First Site</a>
+    <a href="{{ url_for('integrations.add_api') }}" class="btn btn-outline" style="margin-left:8px">Add API Integration</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ Setup Status Banner ═══ -->
+{% if setup_status and setup_status.missing > 0 %}
+{% set pct = (setup_status.ready / setup_status.total * 100)|int if setup_status.total else 0 %}
+<div class="card setup-banner">
+  <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px">
+      <strong>&#9881; Integration Setup: {{ pct }}% complete</strong>
+      <span style="color:var(--muted);font-size:.82rem;margin-left:8px">
+        {{ setup_status.ready }}/{{ setup_status.total }} automations ready &bull; {{ setup_status.missing }} need configuration
+      </span>
+      <div class="mini-bar-track" style="margin-top:8px;height:8px;border-radius:4px">
+        <div class="mini-bar-fill" style="width:{{ pct }}%;background:var(--green);height:100%;border-radius:4px"></div>
+      </div>
+    </div>
+    <a href="{{ url_for('setup.index') }}" class="btn btn-primary btn-sm">Open Setup Wizard</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ Day Cards ═══ -->
+<p class="section-title">Daily Checklist Breakdown</p>
+<div class="days-grid">
+  {% for day in day_order %}
+  {% set day_data = checklist[day] %}
+  {% set tasks = day_data.tasks %}
+  {% set color = day_colors[day] %}
+
+  <div class="day-card anchor" id="{{ day }}">
+    <a href="{{ url_for('dashboard.day_detail', day=day) }}" class="day-card-header day-card-link">
+      <div>
+        <div class="day-name" style="color:{{ color }}">{{ day }}</div>
+        <div class="day-label">{{ day_data.label }}</div>
+      </div>
+      <span class="day-badge" style="background:{{ color }}22;color:{{ color }}">
+        {{ tasks|length }} tasks &#8594;
+      </span>
+    </a>
+
+    <!-- Mini progress based on latest runs -->
+    {% set ns = namespace(ok=0) %}
+    {% for t in tasks %}
+      {% set key = day ~ ":" ~ t %}
+      {% if task_status.get(key) and task_status[key].status == "success" %}
+        {% set ns.ok = ns.ok + 1 %}
+      {% endif %}
+    {% endfor %}
+    {% set pct = (ns.ok / tasks|length * 100)|int if tasks else 0 %}
+    <div class="mini-progress">
+      <div class="mini-progress-meta">
+        <span>{{ pct }}% automated</span>
+        <span>{{ ns.ok }}/{{ tasks|length }} passed</span>
+      </div>
+      <div class="mini-bar-track">
+        <div class="mini-bar-fill" style="width:{{ pct }}%;background:{{ color }}"></div>
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="task-list">
+      {% for task in tasks %}
+      {% set key = day ~ ":" ~ task %}
+      {% set run = task_status.get(key) %}
+      {% set int_type = task_integrations.get(day, {}).get(task, "manual") %}
+      {% set int_info = integration_labels.get(int_type, {}) %}
+      <div class="task-row">
+        <span class="task-toggle" title="{{ run.status if run else 'Not run' }}">
+          {% if run and run.status == "success" %}&#9989;
+          {% elif run and run.status == "failure" %}&#10060;
+          {% elif run and run.status == "warning" %}&#9888;&#65039;
+          {% elif run and run.status == "skipped" %}&#9898;
+          {% else %}&#11036;{% endif %}
+        </span>
+        <span class="task-text {{ 'done' if run and run.status == 'success' else '' }}">{{ task }}</span>
+        <span class="task-badge {{ 'auto' if int_info.get('auto') else 'manual' }}">
+          {{ int_info.get('icon','') }} {{ int_info.get('label','') }}
+        </span>
+        {% if int_type != "manual" %}
+        <form method="POST" action="{{ url_for('integrations.run_task', day=day, task_index=loop.index0) }}" style="margin:0">
+          <input type="hidden" name="site_id" class="site-id-input" value="">
+          <button type="submit" class="task-run-btn" title="Run this check">&#9654; Run</button>
+        </form>
+        {% endif %}
+        {% if run %}
+        <span class="task-status s-{{ run.status }}" title="{{ run.result_summary or '' }}">
+          {{ run.result_summary[:35] if run.result_summary else run.status }}
+        </span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Day footer — Run All -->
+    <div class="day-card-footer">
+      <form method="POST" action="{{ url_for('integrations.run_day', day=day) }}">
+        <input type="hidden" name="site_id" class="site-id-input" value="">
+        <button type="submit" class="btn btn-outline btn-sm btn-block" style="border-color:{{ color }};color:{{ color }}">
+          &#9654; Run All {{ day }} Checks
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ═══ Recent Activity ═══ -->
+{% if recent_runs %}
+<p class="section-title">Recent Activity</p>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Day</th>
+          <th>Task</th>
+          <th>Result</th>
+          <th>Duration</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent_runs %}
+        <tr>
+          <td><span class="status-dot {{ r.status }}"></span>{{ r.status }}</td>
+          <td>{{ r.day }}</td>
+          <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.task_name }}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ r.result_summary or '' }}">{{ r.result_summary or '—' }}</td>
+          <td>{{ r.duration_ms or '—' }}ms</td>
+          <td style="white-space:nowrap">{{ r.run_at.strftime('%b %d %H:%M') if r.run_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Propagate site selector to all hidden inputs
+const sel = document.getElementById('global-site');
+if (sel) {
+  function syncSite() {
+    document.querySelectorAll('.site-id-input').forEach(inp => {
+      inp.value = sel.value;
+    });
+  }
+  sel.addEventListener('change', syncSite);
+  syncSite();
+}
+// Auto-dismiss flash messages
+document.querySelectorAll('.flash').forEach(el => {
+  setTimeout(() => el.style.display = 'none', 6000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+# State files
+checklist_state.json
+
+# Environment
+.env
+.vercel
+instance/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+.venv/

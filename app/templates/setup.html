@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Setup Wizard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#9881; Setup Wizard</h1>
+    <p class="subtitle">Auto-detected integration requirements for your weekly checklist</p>
+  </div>
+  <a href="{{ url_for('integrations.index') }}" class="btn btn-primary btn-sm">Manage Integrations</a>
+</div>
+
+<!-- ═══ Overall Readiness ═══ -->
+<div class="stats-row">
+  <div class="stat-card" style="--card-accent:var(--green)">
+    <div class="stat-value">{{ status.ready }}</div>
+    <div class="stat-label">Ready</div>
+    <span class="stat-icon">&#9989;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--red)">
+    <div class="stat-value">{{ status.missing }}</div>
+    <div class="stat-label">Need Setup</div>
+    <span class="stat-icon">&#10060;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:#60a5fa">
+    <div class="stat-value">{{ status.site_count }}</div>
+    <div class="stat-label">Sites Added</div>
+    <span class="stat-icon">&#127760;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--purple)">
+    <div class="stat-value">{{ status.api_count }}</div>
+    <div class="stat-label">APIs Connected</div>
+    <span class="stat-icon">&#128268;</span>
+  </div>
+</div>
+
+<!-- ═══ Progress Bar ═══ -->
+{% set pct = (status.ready / status.total * 100)|int if status.total else 0 %}
+<div class="card" style="margin-bottom:20px">
+  <div class="card-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <strong>Overall Automation Readiness</strong>
+      <span style="color:var(--muted);font-size:.82rem">{{ pct }}% configured ({{ status.manual_tasks }} tasks require manual action)</span>
+    </div>
+    <div class="mini-bar-track" style="height:12px;border-radius:6px">
+      <div class="mini-bar-fill" style="width:{{ pct }}%;background:var(--green);height:100%;border-radius:6px;transition:width .5s ease"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Missing Integrations (Action Required) ═══ -->
+{% set missing_items = [] %}
+{% for itype, info in status.integrations.items() if not info.ready %}
+  {% if missing_items.append((itype, info)) %}{% endif %}
+{% endfor %}
+
+{% if missing_items %}
+<p class="section-title">&#128680; Action Required — Missing Integrations</p>
+<div class="setup-grid">
+  {% for itype, info in missing_items %}
+  {% set label_info = integration_labels.get(itype, {}) %}
+  <div class="card setup-card missing">
+    <div class="card-body">
+      <div class="setup-card-header">
+        <span class="setup-icon">{{ label_info.get('icon', '🔧') }}</span>
+        <div>
+          <h3>{{ info.label }}</h3>
+          <p class="setup-desc">{{ info.description }}</p>
+        </div>
+        <span class="setup-status-badge missing-badge">&#10060; Not Ready</span>
+      </div>
+      <div class="setup-hint">
+        <strong>How to set up:</strong> {{ info.setup_hint }}
+      </div>
+      <div class="setup-missing">
+        <strong>Missing:</strong>
+        {% for m in info.missing %}
+            <span class="missing-tag">{{ m.replace('_', ' ').title() }}</span>
+        {% endfor %}
+      </div>
+      <div class="setup-tasks">
+        <strong>Tasks blocked ({{ info.task_count }}):</strong>
+        <ul>
+          {% for t in info.tasks %}
+          <li><span class="day-tag">{{ t.day }}</span> {{ t.task }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="setup-actions">
+        {% if info.setup_url %}
+        <a href="{{ info.setup_url }}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">&#128279; Get API Key / Sign In</a>
+        {% endif %}
+        {% if 'site' in info.missing or 'wordpress_credentials' in info.missing %}
+        <a href="{{ url_for('integrations.add_site') }}" class="btn btn-outline btn-sm">+ Add Site</a>
+        {% endif %}
+        {% for m in info.missing if m not in ('site', 'wordpress_credentials') %}
+        <a href="{{ url_for('integrations.add_api') }}" class="btn btn-outline btn-sm">+ Add {{ m.replace('_', ' ').replace('|', ' / ').title() }} API</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ═══ Ready Integrations ═══ -->
+{% set ready_items = [] %}
+{% for itype, info in status.integrations.items() if info.ready %}
+  {% if ready_items.append((itype, info)) %}{% endif %}
+{% endfor %}
+
+{% if ready_items %}
+<p class="section-title">&#9989; Ready to Run</p>
+<div class="setup-grid">
+  {% for itype, info in ready_items %}
+  {% set label_info = integration_labels.get(itype, {}) %}
+  <div class="card setup-card ready">
+    <div class="card-body">
+      <div class="setup-card-header">
+        <span class="setup-icon">{{ label_info.get('icon', '✅') }}</span>
+        <div>
+          <h3>{{ info.label }}</h3>
+          <p class="setup-desc">{{ info.description }}</p>
+        </div>
+        <span class="setup-status-badge ready-badge">&#9989; Ready</span>
+      </div>
+      <div class="setup-tasks">
+        <strong>Automates {{ info.task_count }} task{{ 's' if info.task_count != 1 else '' }}:</strong>
+        <ul>
+          {% for t in info.tasks %}
+          <li><span class="day-tag">{{ t.day }}</span> {{ t.task }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ═══ Day-by-Day Breakdown ═══ -->
+<p class="section-title">&#128197; Day-by-Day Requirements</p>
+<div class="days-grid">
+  {% for day in day_order %}
+  {% set tasks = [] %}
+  {% for task in checklist[day].tasks if true %}
+    {% if tasks.append(task) %}{% endif %}
+  {% endfor %}
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:14px 18px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border)">
+      <strong>{{ day }}</strong> — {{ checklist[day].label }}
+    </div>
+    <div style="padding:12px 18px">
+      <table class="setup-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Integration</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in checklist[day].tasks %}
+          {% set itype = task_integrations.get(day, {}).get(task, 'manual') %}
+          {% set int_info = status.integrations.get(itype) %}
+          <tr>
+            <td>{{ task }}</td>
+            <td>
+              <span class="task-badge {{ 'auto' if itype != 'manual' else 'manual' }}">
+                {{ integration_labels.get(itype, {}).get('icon', '') }}
+                {{ integration_labels.get(itype, {}).get('label', itype) }}
+              </span>
+            </td>
+            <td>
+              {% if itype == 'manual' %}
+                <span style="color:var(--muted)">&#128100; Manual</span>
+              {% elif int_info and int_info.ready %}
+                <span style="color:var(--green)">&#9989; Ready</span>
+              {% else %}
+                <span style="color:var(--red)">&#10060; Missing</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#128272; Admin Dashboard</h1>
+    <p class="subtitle">System-wide overview and management</p>
+  </div>
+</div>
+
+<!-- Stats Cards -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:32px">
+  <div class="card" style="text-align:center;padding:24px">
+    <div style="font-size:2rem;font-weight:700;color:var(--purple)">{{ total_users }}</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-top:4px">&#128100; Users</div>
+  </div>
+  <div class="card" style="text-align:center;padding:24px">
+    <div style="font-size:2rem;font-weight:700;color:var(--green)">{{ total_tasks }}</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-top:4px">&#9989; Task Runs</div>
+  </div>
+  <div class="card" style="text-align:center;padding:24px">
+    <div style="font-size:2rem;font-weight:700;color:var(--blue,#3b82f6)">{{ total_integrations }}</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-top:4px">&#128268; Integrations</div>
+  </div>
+  <div class="card" style="text-align:center;padding:24px">
+    <div style="font-size:2rem;font-weight:700;color:var(--orange,#f59e0b)">{{ total_sites }}</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-top:4px">&#127760; Sites</div>
+  </div>
+  <div class="card" style="text-align:center;padding:24px">
+    <div style="font-size:2rem;font-weight:700;color:var(--teal,#14b8a6)">{{ total_custom_tasks }}</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-top:4px">&#9733; Custom Tasks</div>
+  </div>
+</div>
+
+<!-- Quick Links -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:32px">
+  <a href="{{ url_for('admin.users') }}" class="card" style="padding:20px;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:12px;transition:transform .15s">
+    <span style="font-size:1.5rem">&#128101;</span>
+    <div>
+      <div style="font-weight:600">Manage Users</div>
+      <div style="font-size:.8rem;color:var(--muted)">View, activate, deactivate users</div>
+    </div>
+  </a>
+  <a href="{{ url_for('admin.tasks') }}" class="card" style="padding:20px;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:12px;transition:transform .15s">
+    <span style="font-size:1.5rem">&#128203;</span>
+    <div>
+      <div style="font-weight:600">Manage Tasks</div>
+      <div style="font-size:.8rem;color:var(--muted)">Add and remove tasks for users</div>
+    </div>
+  </a>
+  <a href="{{ url_for('admin.integrations') }}" class="card" style="padding:20px;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:12px;transition:transform .15s">
+    <span style="font-size:1.5rem">&#128268;</span>
+    <div>
+      <div style="font-weight:600">Manage Integrations</div>
+      <div style="font-size:.8rem;color:var(--muted)">View and delete integrations</div>
+    </div>
+  </a>
+  <a href="{{ url_for('admin.logs') }}" class="card" style="padding:20px;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:12px;transition:transform .15s">
+    <span style="font-size:1.5rem">&#128196;</span>
+    <div>
+      <div style="font-weight:600">Activity Logs</div>
+      <div style="font-size:.8rem;color:var(--muted)">View all system activity</div>
+    </div>
+  </a>
+</div>
+
+<!-- Users Overview -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body">
+    <h2 style="margin:0 0 16px;font-size:1.1rem">&#128100; Users ({{ total_users }})</h2>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);text-align:left">
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Name</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Email</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Role</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Status</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px;font-weight:500">{{ user.name }}</td>
+            <td style="padding:8px 12px;color:var(--muted)">{{ user.email }}</td>
+            <td style="padding:8px 12px">
+              {% if user.is_admin %}
+              <span style="background:rgba(239,68,68,.1);color:var(--red,#ef4444);padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600">Admin</span>
+              {% else %}
+              <span style="background:var(--surface2);color:var(--muted);padding:2px 8px;border-radius:4px;font-size:.75rem">User</span>
+              {% endif %}
+            </td>
+            <td style="padding:8px 12px">
+              {% if user.is_active %}
+              <span style="color:var(--green)">&#9679; Active</span>
+              {% else %}
+              <span style="color:var(--red,#ef4444)">&#9679; Inactive</span>
+              {% endif %}
+            </td>
+            <td style="padding:8px 12px;color:var(--muted);font-size:.82rem">{{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card">
+  <div class="card-body">
+    <h2 style="margin:0 0 16px;font-size:1.1rem">&#128196; Recent Activity</h2>
+    {% if recent_logs %}
+    {% for log in recent_logs %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--surface2);margin-bottom:4px">
+      <span style="font-size:.78rem;color:var(--muted);min-width:130px">{{ log.created_at.strftime('%b %d, %H:%M') if log.created_at else '' }}</span>
+      <span style="font-size:.75rem;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,.1);color:var(--purple)">{{ log.category or 'system' }}</span>
+      <span style="flex:1;font-size:.85rem">{{ log.action }}</span>
+      <span style="font-size:.78rem;color:var(--muted)">{{ log.owner.name if log.owner else 'System' }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color:var(--muted);text-align:center;padding:24px 0">No activity logs yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

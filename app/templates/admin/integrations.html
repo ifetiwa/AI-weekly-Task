@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Manage Integrations — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#128268; Manage Integrations</h1>
+    <p class="subtitle">View and manage all integrations and sites across the system</p>
+  </div>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline" style="font-size:.85rem">&#8592; Admin Dashboard</a>
+</div>
+
+<!-- API Integrations -->
+<h2 style="font-size:1.05rem;margin-bottom:12px">&#128273; API Integrations ({{ configs|length }})</h2>
+{% if configs %}
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);text-align:left">
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Service</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Label</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">User</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Status</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Created</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600;text-align:center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cfg in configs %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px;font-weight:500">
+              {% if cfg.service_type in integration_types %}
+              {{ integration_types[cfg.service_type]['icon'] }} {{ integration_types[cfg.service_type]['label'] }}
+              {% else %}
+              {{ cfg.service_type }}
+              {% endif %}
+            </td>
+            <td style="padding:8px 12px">{{ cfg.label or '—' }}</td>
+            <td style="padding:8px 12px;color:var(--muted)">{{ cfg.owner.name if cfg.owner else 'Unknown' }}</td>
+            <td style="padding:8px 12px">
+              {% if cfg.is_active %}
+              <span style="color:var(--green)">&#9679; Active</span>
+              {% else %}
+              <span style="color:var(--red,#ef4444)">&#9679; Inactive</span>
+              {% endif %}
+            </td>
+            <td style="padding:8px 12px;color:var(--muted);font-size:.82rem">{{ cfg.created_at.strftime('%b %d, %Y') if cfg.created_at else '—' }}</td>
+            <td style="padding:8px 12px;text-align:center">
+              <div style="display:flex;gap:6px;justify-content:center">
+                <form method="POST" action="{{ url_for('admin.toggle_integration', cfg_id=cfg.id) }}" style="margin:0">
+                  <button type="submit" class="btn btn-outline btn-sm"
+                          style="padding:3px 10px;font-size:.72rem;{% if cfg.is_active %}color:var(--red,#ef4444);border-color:var(--red,#ef4444){% else %}color:var(--green);border-color:var(--green){% endif %}">
+                    {{ 'Deactivate' if cfg.is_active else 'Activate' }}
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.delete_integration', cfg_id=cfg.id) }}" style="margin:0"
+                      onsubmit="return confirm('Permanently delete this integration? This cannot be undone.')">
+                  <button type="submit" class="btn btn-outline btn-sm"
+                          style="padding:3px 10px;font-size:.72rem;color:var(--red,#ef4444);border-color:var(--red,#ef4444)">&#128465; Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="padding:32px;text-align:center;color:var(--muted);margin-bottom:24px">
+  No API integrations configured yet.
+</div>
+{% endif %}
+
+<!-- Sites -->
+<h2 style="font-size:1.05rem;margin-bottom:12px">&#127760; Sites ({{ sites|length }})</h2>
+{% if sites %}
+<div class="card">
+  <div class="card-body">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);text-align:left">
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Name</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">URL</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Type</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">User</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Status</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Last Checked</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600;text-align:center">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for site in sites %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px;font-weight:500">{{ site.name }}</td>
+            <td style="padding:8px 12px;color:var(--muted);font-size:.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ site.url }}</td>
+            <td style="padding:8px 12px">
+              <span style="font-size:.75rem;background:var(--surface2);padding:2px 8px;border-radius:4px">{{ site.site_type }}</span>
+            </td>
+            <td style="padding:8px 12px;color:var(--muted)">{{ site.owner.name if site.owner else 'Unknown' }}</td>
+            <td style="padding:8px 12px">
+              {% if site.is_active %}
+              <span style="color:var(--green)">&#9679; Active</span>
+              {% else %}
+              <span style="color:var(--red,#ef4444)">&#9679; Inactive</span>
+              {% endif %}
+            </td>
+            <td style="padding:8px 12px;color:var(--muted);font-size:.82rem">{{ site.last_checked.strftime('%b %d, %H:%M') if site.last_checked else 'Never' }}</td>
+            <td style="padding:8px 12px;text-align:center">
+              <form method="POST" action="{{ url_for('admin.delete_site', site_id=site.id) }}" style="margin:0"
+                    onsubmit="return confirm('Permanently delete this site? This cannot be undone.')">
+                <button type="submit" class="btn btn-outline btn-sm"
+                        style="padding:3px 10px;font-size:.72rem;color:var(--red,#ef4444);border-color:var(--red,#ef4444)">&#128465; Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="padding:32px;text-align:center;color:var(--muted)">
+  No sites configured yet.
+</div>
+{% endif %}
+{% endblock %}

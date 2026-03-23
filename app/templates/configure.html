@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Configure{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>
+      {% if mode == 'add_site' %}&#127760; Add Site
+      {% elif mode == 'edit_site' %}&#127760; Edit Site — {{ site.name }}
+      {% elif mode == 'add_api' %}&#128272; Add API Integration
+      {% elif mode == 'edit_api' %}&#128272; Edit Integration — {{ cfg.label }}
+      {% endif %}
+    </h1>
+  </div>
+  <a href="{{ url_for('integrations.index') }}" class="btn btn-outline btn-sm">&#8592; Back</a>
+</div>
+
+<div class="card" style="max-width:640px">
+  <div class="card-body">
+
+    {# ═══ ADD / EDIT SITE ═══ #}
+    {% if mode in ('add_site', 'edit_site') %}
+    <form method="POST">
+      <div class="form-group">
+        <label for="name">Site Name</label>
+        <input type="text" id="name" name="name" class="form-control"
+               placeholder="e.g. P23 Health" value="{{ site.name if mode == 'edit_site' else '' }}" required>
+      </div>
+      <div class="form-group">
+        <label for="url">Site URL</label>
+        <input type="url" id="url" name="url" class="form-control"
+               placeholder="https://p23health.com" value="{{ site.url if mode == 'edit_site' else '' }}" required>
+      </div>
+      <div class="form-group">
+        <label for="site_type">Site Type</label>
+        <select id="site_type" name="site_type" class="form-control" onchange="toggleWP()">
+          <option value="wordpress" {{ 'selected' if mode == 'edit_site' and site.site_type == 'wordpress' else '' }}>WordPress</option>
+          <option value="custom" {{ 'selected' if mode == 'edit_site' and site.site_type == 'custom' else '' }}>Custom / Static</option>
+        </select>
+      </div>
+
+      <div id="wp-fields">
+        <p class="section-title" style="margin-top:12px">WordPress Credentials</p>
+
+        {% if mode == 'add_site' %}
+        <div class="card" style="margin-bottom:18px;border-left:4px solid var(--accent);background:var(--surface2)">
+          <div class="card-body" style="padding:14px 18px">
+            <p style="font-size:.85rem;font-weight:600;margin-bottom:6px">&#128279; Automatic Connection</p>
+            <p style="font-size:.78rem;color:var(--muted);margin-bottom:10px">
+              After adding the site, click <strong>"Connect via WP Login"</strong> on the integrations page.
+              You'll be redirected to your WordPress admin to approve the connection —
+              credentials will be saved automatically.
+            </p>
+          </div>
+        </div>
+        {% elif mode == 'edit_site' and site.site_type == 'wordpress' %}
+          {% set creds = site.get_credentials() %}
+          {% if creds.get('username') and creds.get('app_password') %}
+          <div class="card" style="margin-bottom:18px;border-left:4px solid var(--green);background:var(--surface2)">
+            <div class="card-body" style="padding:14px 18px">
+              <p style="color:var(--green);font-weight:600;font-size:.85rem">&#9989; WordPress Connected</p>
+              <p style="font-size:.78rem;color:var(--muted)">Logged in as <strong>{{ creds.username }}</strong></p>
+            </div>
+          </div>
+          {% else %}
+          <div class="card" style="margin-bottom:18px;border-left:4px solid var(--accent);background:var(--surface2)">
+            <div class="card-body" style="padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px">
+                <p style="font-size:.85rem;font-weight:600;margin-bottom:4px">&#128279; Connect Automatically</p>
+                <p style="font-size:.78rem;color:var(--muted)">Click below to log in to your WordPress admin and approve the connection.</p>
+              </div>
+              <a href="{{ url_for('integrations.connect_wordpress', site_id=site.id) }}" class="btn btn-primary btn-sm">&#128279; Connect via WP Login</a>
+            </div>
+          </div>
+          {% endif %}
+        {% endif %}
+
+        <p style="font-size:.78rem;color:var(--muted);margin-bottom:14px">
+          Or manually enter an <strong>Application Password</strong> from
+          WP Admin &rarr; Users &rarr; Your Profile &rarr; Application Passwords.
+        </p>
+        <div class="form-group">
+          <label for="wp_username">WP Username</label>
+          <input type="text" id="wp_username" name="wp_username" class="form-control"
+                 placeholder="admin"
+                 value="{{ site.get_credentials().get('username', '') if mode == 'edit_site' else '' }}">
+        </div>
+        <div class="form-group">
+          <label for="wp_app_password">WP Application Password</label>
+          <input type="password" id="wp_app_password" name="wp_app_password" class="form-control"
+                 placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+                 value="{{ site.get_credentials().get('app_password', '') if mode == 'edit_site' else '' }}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="pages">Pages to Monitor (comma-separated paths, optional)</label>
+        <input type="text" id="pages" name="pages" class="form-control"
+               placeholder="/login, /dashboard, /contact"
+               value="{{ ', '.join(site.get_credentials().get('pages', [])) if mode == 'edit_site' else '' }}">
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        {{ 'Update Site' if mode == 'edit_site' else 'Add Site' }}
+      </button>
+    </form>
+
+    {# ═══ ADD / EDIT API ═══ #}
+    {% elif mode in ('add_api', 'edit_api') %}
+    <form method="POST">
+
+      {% if mode == 'add_api' %}
+      <div class="form-group">
+        <label for="service_type">Service</label>
+        <select id="service_type" name="service_type" class="form-control" onchange="showFields()" required>
+          <option value="">— Select a service —</option>
+          {% for key, info in integration_types.items() %}
+          <option value="{{ key }}">{{ info.icon }} {{ info.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div id="external-link" style="display:none;margin-bottom:18px"></div>
+      {% endif %}
+
+      {% if mode == 'edit_api' %}
+        {% set stype = cfg.service_type %}
+        {% set ext_info = integration_types.get(stype, {}) %}
+        {% if ext_info.get('setup_url') %}
+        <div style="margin-bottom:18px;padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:.82rem">
+          &#128279; <a href="{{ ext_info.setup_url }}" target="_blank" rel="noopener" style="color:var(--accent)">Open {{ ext_info.label }} Dashboard</a>
+          {% if ext_info.get('docs_url') %}
+           &bull; <a href="{{ ext_info.docs_url }}" target="_blank" rel="noopener" style="color:var(--muted)">&#128214; API Docs</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      {% endif %}
+
+      <div class="form-group">
+        <label for="label">Friendly Label (optional)</label>
+        <input type="text" id="label" name="label" class="form-control"
+               placeholder="e.g. Production SendGrid"
+               value="{{ cfg.label if mode == 'edit_api' else '' }}">
+      </div>
+
+      {# Dynamic fields per service type #}
+      {% if mode == 'edit_api' %}
+        {% set stype = cfg.service_type %}
+        {% set cdata = cfg.get_config() %}
+        {% for field in integration_types.get(stype, {}).get('fields', []) %}
+        <div class="form-group">
+          <label for="{{ field.name }}">{{ field.label }}</label>
+          {% if field.type == 'textarea' %}
+          <textarea id="{{ field.name }}" name="{{ field.name }}" class="form-control"
+                    placeholder="{{ field.label }}">{{ cdata.get(field.name, '') }}</textarea>
+          {% else %}
+          <input type="{{ field.type }}" id="{{ field.name }}" name="{{ field.name }}"
+                 class="form-control" placeholder="{{ field.label }}"
+                 value="{{ cdata.get(field.name, '') }}">
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        {# JS-driven fields for add mode #}
+        <div id="dynamic-fields"></div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary">
+        {{ 'Update Integration' if mode == 'edit_api' else 'Add Integration' }}
+      </button>
+    </form>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleWP() {
+  const wp = document.getElementById('wp-fields');
+  const sel = document.getElementById('site_type');
+  if (wp && sel) wp.style.display = sel.value === 'wordpress' ? '' : 'none';
+}
+toggleWP();
+
+{% if mode == 'add_api' %}
+const TYPES = {{ integration_types|tojson }};
+function showFields() {
+  const sel = document.getElementById('service_type');
+  const box = document.getElementById('dynamic-fields');
+  const extBox = document.getElementById('external-link');
+  box.innerHTML = '';
+  extBox.innerHTML = '';
+  extBox.style.display = 'none';
+  const info = TYPES[sel.value];
+  if (!info) return;
+  // Show external links
+  if (info.setup_url) {
+    let html = '<div style="padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:.82rem">';
+    html += '&#128279; <a href="' + info.setup_url + '" target="_blank" rel="noopener" style="color:var(--accent)">Open ' + info.label + ' Dashboard to get your API key</a>';
+    if (info.docs_url) {
+      html += ' &bull; <a href="' + info.docs_url + '" target="_blank" rel="noopener" style="color:var(--muted)">&#128214; API Docs</a>';
+    }
+    html += '</div>';
+    extBox.innerHTML = html;
+    extBox.style.display = 'block';
+  }
+  info.fields.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'form-group';
+    const lbl = document.createElement('label');
+    lbl.setAttribute('for', f.name);
+    lbl.textContent = f.label;
+    div.appendChild(lbl);
+    let inp;
+    if (f.type === 'textarea') {
+      inp = document.createElement('textarea');
+      inp.className = 'form-control';
+    } else {
+      inp = document.createElement('input');
+      inp.type = f.type;
+      inp.className = 'form-control';
+    }
+    inp.id = f.name;
+    inp.name = f.name;
+    inp.placeholder = f.label;
+    div.appendChild(inp);
+    box.appendChild(div);
+  });
+}
+// Auto-select service from ?service= query param
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const svc = params.get('service');
+  if (svc) {
+    const sel = document.getElementById('service_type');
+    if (sel) {
+      sel.value = svc;
+      showFields();
+    }
+  }
+})();
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Integrations{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#128268; Integrations</h1>
+    <p class="subtitle">Manage your websites and API connections</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('integrations.add_site') }}" class="btn btn-primary btn-sm">+ Add Site</a>
+    <a href="{{ url_for('integrations.add_api') }}" class="btn btn-outline btn-sm">+ Add API Key</a>
+  </div>
+</div>
+
+<!-- ═══ Sites ═══ -->
+<p class="section-title">&#127760; Your Sites</p>
+{% if sites %}
+<div class="int-grid">
+  {% for s in sites %}
+  <div class="int-card">
+    <div class="int-card-icon">
+      {% if s.site_type == 'wordpress' %}&#128221;{% else %}&#127760;{% endif %}
+    </div>
+    <div class="int-card-body">
+      <h3>{{ s.name }}</h3>
+      <p>{{ s.url }}<br>
+        Type: <strong>{{ s.site_type }}</strong>
+        {% if s.last_status %}
+          &mdash; Last: <span class="status-dot {{ s.last_status }}"></span>{{ s.last_status }}
+        {% endif %}
+      </p>
+      {% if s.site_type == 'wordpress' %}
+        {% set creds = s.get_credentials() %}
+        {% if creds.get('username') and creds.get('app_password') %}
+        <div style="margin-bottom:8px">
+          <span class="connect-badge connected">&#9989; WordPress Connected</span>
+          <span style="font-size:.72rem;color:var(--muted);margin-left:6px">as {{ creds.username }}</span>
+        </div>
+        {% else %}
+        <div style="margin-bottom:8px">
+          <span class="connect-badge not-connected">&#9888; Not Connected</span>
+        </div>
+        {% endif %}
+      {% endif %}
+      <div class="int-card-actions">
+        {% if s.site_type == 'wordpress' %}
+          {% set creds = s.get_credentials() %}
+          {% if not (creds.get('username') and creds.get('app_password')) %}
+          <a href="{{ url_for('integrations.connect_wordpress', site_id=s.id) }}" class="btn btn-primary btn-sm">&#128279; Auto-Connect WP</a>
+          {% endif %}
+        {% endif %}
+        <a href="{{ url_for('integrations.test_site', site_id=s.id) }}" class="btn btn-outline btn-sm" style="color:var(--teal);border-color:var(--teal)">&#9889; Test</a>
+        <a href="{{ url_for('integrations.edit_site', site_id=s.id) }}" class="btn btn-outline btn-sm">Edit</a>
+        <form method="POST" action="{{ url_for('integrations.delete_site', site_id=s.id) }}"
+              onsubmit="return confirm('Delete site {{ s.name }}?')" style="margin:0">
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body empty-state">
+    <div class="empty-icon">&#127760;</div>
+    <p>No sites yet. Add your WordPress or custom websites to start automated checks.</p>
+    <a href="{{ url_for('integrations.add_site') }}" class="btn btn-primary btn-sm">+ Add Your First Site</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ API Integrations ═══ -->
+<p class="section-title">&#128272; Active API Integrations</p>
+{% if configs %}
+<div class="int-grid">
+  {% for c in configs %}
+  {% set info = integration_types.get(c.service_type, {}) %}
+  <div class="int-card">
+    <div class="int-card-icon">{{ info.get('icon', '🔌') }}</div>
+    <div class="int-card-body">
+      <h3>{{ c.label or info.get('label', c.service_type) }}</h3>
+      <p>Service: <strong>{{ info.get('label', c.service_type) }}</strong><br>
+        Status: {% if c.is_active %}<span style="color:var(--green)">Active</span>{% else %}<span style="color:var(--muted)">Disabled</span>{% endif %}
+        <br><span style="font-size:.72rem;color:var(--muted)">Added {{ c.created_at.strftime('%b %d, %Y') if c.created_at else '' }}</span>
+      </p>
+      <div class="int-card-actions">
+        <a href="{{ url_for('integrations.test_api', cfg_id=c.id) }}" class="btn btn-outline btn-sm" style="color:var(--teal);border-color:var(--teal)">&#9889; Test</a>
+        <a href="{{ url_for('integrations.edit_api', cfg_id=c.id) }}" class="btn btn-outline btn-sm">Edit</a>
+        <form method="POST" action="{{ url_for('integrations.delete_api', cfg_id=c.id) }}"
+              onsubmit="return confirm('Delete this integration?')" style="margin:0">
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body empty-state">
+    <div class="empty-icon">&#128272;</div>
+    <p>No API integrations configured yet.</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ Connect New Services ═══ -->
+<p class="section-title">&#128268; Connect New Services</p>
+<p style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+  Click <strong>Auto-Connect</strong> to connect via OAuth, or <strong>Manual Setup</strong> to enter your API keys directly.
+</p>
+<div class="int-grid">
+  {% for key, info in integration_types.items() %}
+  {% set already_connected = configs|selectattr('service_type', 'equalto', key)|list|length > 0 %}
+  <div class="int-card{% if already_connected %} connected-card{% endif %}">
+    <div class="int-card-icon">{{ info.icon }}</div>
+    <div class="int-card-body">
+      <h3>{{ info.label }}</h3>
+      {% if already_connected %}
+      <p style="color:var(--green);font-size:.82rem;font-weight:600">&#9989; Connected</p>
+      {% else %}
+      <p style="font-size:.8rem;color:var(--muted)">
+        {% if key in ('google_analytics', 'google_search_console') %}
+          Connect your Google account via OAuth to pull data automatically.
+        {% elif key == 'pagespeed' %}
+          Add a Google Cloud API key for page speed analysis.
+        {% elif key == 'sendgrid' %}
+          Enter your SendGrid API key to monitor email deliverability.
+        {% elif key == 'mailgun' %}
+          Enter your Mailgun API key and domain for email monitoring.
+        {% elif key == 'uptimerobot' %}
+          Enter your UptimeRobot API key for uptime monitoring.
+        {% endif %}
+      </p>
+      {% endif %}
+      <div class="int-card-actions" style="flex-wrap:wrap">
+        {% if not already_connected %}
+          {% if key in ('google_analytics', 'google_search_console') %}
+          <a href="{{ url_for('integrations.connect_google', service=key) }}" class="btn btn-primary btn-sm">&#128279; Auto-Connect (OAuth)</a>
+          {% else %}
+          <a href="{{ url_for('integrations.connect_api', service_type=key) }}" class="btn btn-primary btn-sm">&#128279; Auto-Connect</a>
+          {% endif %}
+          <a href="{{ url_for('integrations.add_api') }}?service={{ key }}" class="btn btn-outline btn-sm">&#9997; Manual Setup</a>
+        {% else %}
+          <a href="{{ url_for('integrations.add_api') }}?service={{ key }}" class="btn btn-outline btn-sm">+ Add Another</a>
+        {% endif %}
+        {% if info.get('setup_url') %}
+        <a href="{{ info.setup_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="font-size:.72rem">&#128214; Dashboard</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
