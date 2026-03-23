@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Manage Tasks — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#128203; Manage Tasks</h1>
+    <p class="subtitle">View default tasks and manage custom tasks for all users</p>
+  </div>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline" style="font-size:.85rem">&#8592; Admin Dashboard</a>
+</div>
+
+<!-- Add New Task Form -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body">
+    <h2 style="margin:0 0 16px;font-size:1.1rem">&#10133; Add Custom Task</h2>
+    <form method="POST" action="{{ url_for('admin.add_task') }}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div style="min-width:160px">
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">User</label>
+        <select name="user_id" required class="form-input"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.88rem">
+          <option value="">Select user...</option>
+          {% for user in users %}
+          <option value="{{ user.id }}">{{ user.name }} ({{ user.email }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="min-width:140px">
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">Day</label>
+        <select name="day" required class="form-input"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.88rem">
+          {% for day in day_order %}
+          <option value="{{ day }}">{{ day }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">Task Name</label>
+        <input type="text" name="task_name" required minlength="3" maxlength="300" placeholder="Enter task name..."
+               style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.88rem">
+      </div>
+      <div style="min-width:160px">
+        <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">Integration Type</label>
+        <select name="integration_type" class="form-input"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.88rem">
+          {% for itype in integration_types %}
+          <option value="{{ itype.value }}">{{ itype.icon }} {{ itype.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="padding:8px 20px;white-space:nowrap">Add Task</button>
+    </form>
+  </div>
+</div>
+
+<!-- Default Tasks per Day -->
+<h2 style="font-size:1.05rem;margin-bottom:12px">&#128197; Default Tasks by Day</h2>
+{% for day in days_data %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin:0;font-size:1rem">{{ day.name }} — <span style="color:var(--muted);font-weight:400">{{ day.label }}</span></h3>
+      <span style="background:rgba(99,102,241,.1);color:var(--purple);padding:2px 10px;border-radius:4px;font-size:.75rem;font-weight:600">{{ day.tasks|length }} tasks</span>
+    </div>
+    {% for task in day.tasks %}
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 12px;border-radius:6px;background:var(--surface2);margin-bottom:3px">
+      <span style="color:var(--muted)">&#9679;</span>
+      <span style="flex:1;font-size:.85rem">{{ task }}</span>
+      <span style="font-size:.7rem;color:var(--muted);background:var(--surface);padding:2px 8px;border-radius:4px">Default</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- Custom Tasks (all users) -->
+<h2 style="font-size:1.05rem;margin:24px 0 12px">&#9733; Custom Tasks (All Users)</h2>
+{% if custom_tasks %}
+<div class="card">
+  <div class="card-body">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);text-align:left">
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Day</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Task Name</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">Integration</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600">User</th>
+            <th style="padding:8px 12px;color:var(--muted);font-weight:600;text-align:center">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ct in custom_tasks %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px">{{ ct.day }}</td>
+            <td style="padding:8px 12px;font-weight:500">{{ ct.task_name }}</td>
+            <td style="padding:8px 12px">
+              <span style="font-size:.75rem;color:var(--purple);background:rgba(99,102,241,.1);padding:2px 8px;border-radius:4px">{{ ct.integration_type }}</span>
+            </td>
+            <td style="padding:8px 12px;color:var(--muted)">{{ ct.owner_rel.name if ct.owner_rel else 'Unknown' }}</td>
+            <td style="padding:8px 12px;text-align:center">
+              <form method="POST" action="{{ url_for('admin.delete_task', task_id=ct.id) }}" style="margin:0"
+                    onsubmit="return confirm('Remove this custom task?')">
+                <button type="submit" class="btn btn-outline btn-sm"
+                        style="padding:3px 10px;font-size:.72rem;color:var(--red,#ef4444);border-color:var(--red,#ef4444)">&#10005; Remove</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="padding:32px;text-align:center;color:var(--muted)">
+  No custom tasks have been created yet.
+</div>
+{% endif %}
+{% endblock %}

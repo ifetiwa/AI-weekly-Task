@@ -1,0 +1,865 @@
+{% extends "base.html" %}
+{% block title %}Run Results — {{ day }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('dashboard.day_detail', day=day) }}" class="back-link">&larr; Back to {{ day }}</a>
+    <h1>&#128202; Run Results</h1>
+    <p class="subtitle">{{ day }} — {{ total }} check{{ 's' if total != 1 else '' }} executed
+      <span style="color:var(--muted);font-size:.75rem;margin-left:8px">Batch {{ batch_id[:8] }}</span>
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+    <form method="POST" action="{{ url_for('integrations.run_day', day=day) }}">
+      <button type="submit" class="btn btn-primary btn-sm">&#128260; Re-run All</button>
+    </form>
+    <a href="{{ url_for('integrations.download_report_csv', batch_id=batch_id) }}" class="btn btn-outline btn-sm" style="color:var(--teal);border-color:var(--teal)">&#128196; CSV Report</a>
+    <a href="{{ url_for('integrations.download_report_json', batch_id=batch_id) }}" class="btn btn-outline btn-sm" style="color:var(--purple);border-color:var(--purple)">&#128196; JSON Report</a>
+    <a href="{{ url_for('dashboard.day_detail', day=day) }}" class="btn btn-outline btn-sm">&#128197; Day Detail</a>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline btn-sm">&#127968; Dashboard</a>
+  </div>
+</div>
+
+<!-- ═══ Summary Stats ═══ -->
+<div class="stats-row">
+  <div class="stat-card" style="--card-accent:var(--green)">
+    <div class="stat-value">{{ ok }}</div>
+    <div class="stat-label">Passed</div>
+    <span class="stat-icon">&#9989;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--red)">
+    <div class="stat-value">{{ fail }}</div>
+    <div class="stat-label">Failed</div>
+    <span class="stat-icon">&#10060;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--yellow)">
+    <div class="stat-value">{{ warn }}</div>
+    <div class="stat-label">Warnings</div>
+    <span class="stat-icon">&#9888;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--muted)">
+    <div class="stat-value">{{ skip }}</div>
+    <div class="stat-label">Skipped</div>
+    <span class="stat-icon">&#9898;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--purple)">
+    <div class="stat-value">{{ report.summary.pass_rate }}%</div>
+    <div class="stat-label">Pass Rate</div>
+    <span class="stat-icon">&#128200;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--teal)">
+    <div class="stat-value">{{ total_ms }}ms</div>
+    <div class="stat-label">Total Duration</div>
+    <span class="stat-icon">&#9201;</span>
+  </div>
+</div>
+
+<!-- ═══ Overall Progress ═══ -->
+{% set pct = (ok / total * 100)|int if total else 0 %}
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <strong>Overall Result</strong>
+      <span style="font-size:.82rem;color:{% if fail == 0 %}var(--green){% else %}var(--red){% endif %};font-weight:700">
+        {% if fail == 0 %}&#9989; All checks passed{% else %}&#9888; {{ fail }} check{{ 's' if fail != 1 else '' }} failed{% endif %}
+      </span>
+    </div>
+    <div class="results-bar" style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--surface2)">
+      {% if ok %}<div style="width:{{ (ok/total*100)|round(1) }}%;background:var(--green)" title="{{ ok }} passed"></div>{% endif %}
+      {% if warn %}<div style="width:{{ (warn/total*100)|round(1) }}%;background:var(--yellow)" title="{{ warn }} warnings"></div>{% endif %}
+      {% if skip %}<div style="width:{{ (skip/total*100)|round(1) }}%;background:var(--muted)" title="{{ skip }} skipped"></div>{% endif %}
+      {% if fail %}<div style="width:{{ (fail/total*100)|round(1) }}%;background:var(--red)" title="{{ fail }} failed"></div>{% endif %}
+    </div>
+    <div style="display:flex;gap:16px;margin-top:8px;font-size:.75rem;color:var(--muted)">
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:4px"></span>Passed ({{ ok }})</span>
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:4px"></span>Warning ({{ warn }})</span>
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:4px"></span>Skipped ({{ skip }})</span>
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:4px"></span>Failed ({{ fail }})</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Execution Timeline ═══ -->
+<p class="section-title">&#9201; Execution Timeline</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body" style="overflow-x:auto">
+    <div class="timeline-track">
+      {% for r in runs %}
+      {% set bar_w = ((r.duration_ms or 1) / (total_ms if total_ms else 1) * 100) %}
+      <div class="timeline-item"
+           title="{{ r.task_name }} — {{ r.duration_ms or 0 }}ms ({{ r.status }})"
+           style="flex:{{ bar_w if bar_w > 0.5 else 0.5 }}">
+        <div class="timeline-bar timeline-{{ r.status }}"></div>
+        <span class="timeline-label">{{ (r.duration_ms or 0) }}ms</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;gap:14px;margin-top:10px;font-size:.72rem;color:var(--muted)">
+      <span>&#9632; <span style="color:var(--green)">Pass</span></span>
+      <span>&#9632; <span style="color:var(--red)">Fail</span></span>
+      <span>&#9632; <span style="color:var(--yellow)">Warn</span></span>
+      <span>&#9632; <span style="color:var(--muted)">Skip</span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DAILY RECOMMENDATIONS ═══ -->
+{% if recommendations %}
+<p class="section-title">&#128161; Daily Recommendations</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body" style="padding:0">
+    {% for rec in recommendations %}
+    <div style="padding:16px 20px;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}
+                background:{% if rec.priority == 'high' %}rgba(248,113,113,.04){% elif rec.priority == 'medium' %}rgba(250,204,21,.04){% else %}rgba(74,222,128,.04){% endif %}">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <span style="font-size:1.3rem;line-height:1">{{ rec.icon }}</span>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <strong style="font-size:.95rem">{{ rec.title }}</strong>
+            <span style="font-size:.68rem;padding:2px 8px;border-radius:10px;font-weight:600;text-transform:uppercase;
+              {% if rec.priority == 'high' %}background:rgba(248,113,113,.15);color:var(--red)
+              {% elif rec.priority == 'medium' %}background:rgba(250,204,21,.15);color:#b45309
+              {% else %}background:rgba(74,222,128,.15);color:var(--green){% endif %}">{{ rec.priority }}</span>
+          </div>
+          <p style="margin:0 0 8px;font-size:.84rem;color:var(--muted);line-height:1.5">{{ rec.description }}</p>
+          {% if rec.tasks %}
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            {% for t in rec.tasks %}
+            <span style="font-size:.75rem;padding:3px 10px;border-radius:6px;background:var(--surface2);color:var(--text)">{{ t }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ RUN ANALYTICS ═══ -->
+{% if analytics %}
+<p class="section-title">&#128202; Run Analytics</p>
+
+<!-- Analytics Row 1: Status Distribution + Duration Stats -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+  <!-- Status Distribution -->
+  <div class="card">
+    <div class="card-body">
+      <h3 style="margin:0 0 12px;font-size:.92rem">Status Distribution</h3>
+      {% for s in analytics.status_distribution %}
+      {% if s.count > 0 %}
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:3px">
+          <span>{{ s.label }}</span>
+          <span style="font-weight:600">{{ s.count }} ({{ (s.count / total * 100)|round(1) }}%)</span>
+        </div>
+        <div style="height:8px;border-radius:4px;background:var(--surface2);overflow:hidden">
+          <div style="width:{{ (s.count / total * 100)|round(1) }}%;height:100%;border-radius:4px;background:{{ s.color }}"></div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Duration Stats -->
+  <div class="card">
+    <div class="card-body">
+      <h3 style="margin:0 0 12px;font-size:.92rem">Performance Metrics</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="text-align:center;padding:12px;border-radius:8px;background:var(--surface2)">
+          <div style="font-size:1.3rem;font-weight:700;color:var(--teal)">{{ analytics.duration.avg }}ms</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">Avg Duration</div>
+        </div>
+        <div style="text-align:center;padding:12px;border-radius:8px;background:var(--surface2)">
+          <div style="font-size:1.3rem;font-weight:700;color:var(--red)">{{ analytics.duration.max }}ms</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">Slowest</div>
+        </div>
+        <div style="text-align:center;padding:12px;border-radius:8px;background:var(--surface2)">
+          <div style="font-size:1.3rem;font-weight:700;color:var(--green)">{{ analytics.duration.min }}ms</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">Fastest</div>
+        </div>
+        <div style="text-align:center;padding:12px;border-radius:8px;background:var(--surface2)">
+          <div style="font-size:1.3rem;font-weight:700;color:var(--purple)">{{ analytics.pass_rate }}%</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">Pass Rate</div>
+        </div>
+      </div>
+      {% if analytics.duration.slowest_task %}
+      <div style="margin-top:12px;font-size:.78rem;color:var(--muted)">
+        <div>&#128034; Slowest: <strong style="color:var(--text)">{{ analytics.duration.slowest_task }}</strong></div>
+        <div>&#9889; Fastest: <strong style="color:var(--text)">{{ analytics.duration.fastest_task }}</strong></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Analytics Row 2: Integration Types + Site Pass Rates -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+  <!-- Integration Type Distribution -->
+  <div class="card">
+    <div class="card-body">
+      <h3 style="margin:0 0 12px;font-size:.92rem">Checks by Integration Type</h3>
+      {% for t in analytics.type_distribution %}
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+        <span style="font-size:1rem">{{ t.icon }}</span>
+        <span style="flex:1;font-size:.84rem">{{ t.label }}</span>
+        <span style="font-weight:600;font-size:.84rem;min-width:30px;text-align:right">{{ t.count }}</span>
+        <div style="width:60px;height:6px;border-radius:3px;background:var(--surface2);overflow:hidden">
+          <div style="width:{{ (t.count / total * 100)|round(1) }}%;height:100%;border-radius:3px;background:var(--purple)"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Site Pass Rates -->
+  <div class="card">
+    <div class="card-body">
+      <h3 style="margin:0 0 12px;font-size:.92rem">Pass Rate by Site</h3>
+      {% for sp in analytics.site_pass_rates %}
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:3px">
+          <span>{{ sp.site }}</span>
+          <span style="font-weight:600;color:{% if sp.rate >= 80 %}var(--green){% elif sp.rate >= 50 %}var(--yellow){% else %}var(--red){% endif %}">{{ sp.rate }}% ({{ sp.ok }}/{{ sp.total }})</span>
+        </div>
+        <div style="height:8px;border-radius:4px;background:var(--surface2);overflow:hidden">
+          <div style="width:{{ sp.rate }}%;height:100%;border-radius:4px;background:{% if sp.rate >= 80 %}var(--green){% elif sp.rate >= 50 %}var(--yellow){% else %}var(--red){% endif %}"></div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not analytics.site_pass_rates %}
+      <p style="color:var(--muted);font-size:.84rem">No site data available.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Analytics Row 3: Historical Trend -->
+{% if analytics.trend|length > 1 %}
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body">
+    <h3 style="margin:0 0 12px;font-size:.92rem">&#128200; {{ day }} Pass Rate Trend</h3>
+    <div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding:0 4px">
+      {% for t in analytics.trend %}
+      {% set bar_h = t.pass_rate %}
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+        <span style="font-size:.65rem;font-weight:600;color:{% if t.pass_rate >= 80 %}var(--green){% elif t.pass_rate >= 50 %}var(--yellow){% else %}var(--red){% endif %}">{{ t.pass_rate }}%</span>
+        <div style="width:100%;max-width:40px;height:{{ bar_h }}%;min-height:4px;border-radius:4px 4px 0 0;
+                    background:{% if t.pass_rate >= 80 %}var(--green){% elif t.pass_rate >= 50 %}var(--yellow){% else %}var(--red){% endif %}"></div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;gap:4px;margin-top:6px;padding:0 4px">
+      {% for t in analytics.trend %}
+      <div style="flex:1;text-align:center;min-width:0">
+        <span style="font-size:.6rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ t.date }}">{{ t.date }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- ═══ DETAILED REPORT SECTIONS ═══ -->
+
+<!-- ── WordPress Plugins ── -->
+{% if report.plugins %}
+<p class="section-title">&#128268; WordPress Plugins ({{ report.plugins|length }})</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Site</th><th>Plugin Name</th><th>Version</th><th>Status</th><th>Update Available</th></tr>
+      </thead>
+      <tbody>
+        {% for p in report.plugins %}
+        <tr>
+          <td>{{ p.site }}</td>
+          <td><strong>{{ p.name }}</strong></td>
+          <td>v{{ p.version }}</td>
+          <td><span class="status-dot {{ 'success' if p.status == 'active' else 'warning' }}"></span>{{ p.status }}</td>
+          <td>
+            {% if p.update_available and p.update_available != 'No' %}
+              <span style="color:var(--yellow);font-weight:600">&#8593; {{ p.update_available }}</span>
+            {% else %}
+              <span style="color:var(--green)">&#10003; Up to date</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set updates_count = report.plugins|selectattr('update_available', 'ne', 'No')|list|length %}
+  {% if updates_count > 0 %}
+  <div style="padding:12px 20px;border-top:1px solid var(--border);background:rgba(250,204,21,.06)">
+    <strong style="color:var(--yellow)">&#9888; {{ updates_count }} plugin{{ 's' if updates_count != 1 else '' }} need{{ '' if updates_count != 1 else 's' }} updating.</strong>
+    <span style="color:var(--muted);font-size:.78rem;margin-left:8px">Update plugins promptly to patch security vulnerabilities.</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── WordPress Themes ── -->
+{% if report.themes %}
+<p class="section-title">&#127912; WordPress Themes ({{ report.themes|length }})</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Site</th><th>Theme Name</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for t in report.themes %}
+        <tr>
+          <td>{{ t.site }}</td>
+          <td><strong>{{ t.name }}</strong></td>
+          <td><span class="status-dot {{ 'success' if t.status == 'active' else 'warning' }}"></span>{{ t.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Broken Links ── -->
+{% if report.broken_links %}
+<p class="section-title">&#128279; Broken Links ({{ report.broken_links|length }})</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Site</th><th>Broken URL</th><th>HTTP Status</th></tr>
+      </thead>
+      <tbody>
+        {% for b in report.broken_links %}
+        <tr>
+          <td>{{ b.site }}</td>
+          <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ b.url }}">
+            <code style="font-size:.78rem">{{ b.url }}</code>
+          </td>
+          <td><span style="color:var(--red);font-weight:600">{{ b.http_status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="padding:12px 20px;border-top:1px solid var(--border);background:rgba(248,113,113,.06)">
+    <strong style="color:var(--red)">&#10060; {{ report.broken_links|length }} broken link{{ 's' if report.broken_links|length != 1 else '' }} found.</strong>
+    <span style="color:var(--muted);font-size:.78rem;margin-left:8px">Fix or remove broken links to improve SEO and user experience.</span>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Site Health ── -->
+{% if report.site_health %}
+<p class="section-title">&#128155; Site Health</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Site</th><th>HTTP Status</th><th>Response Time</th><th>Final URL</th></tr>
+      </thead>
+      <tbody>
+        {% for h in report.site_health %}
+        <tr>
+          <td><strong>{{ h.site }}</strong></td>
+          <td>
+            <span style="color:{% if h.status_code < 400 %}var(--green){% else %}var(--red){% endif %};font-weight:600">
+              {{ h.status_code }}
+            </span>
+          </td>
+          <td>
+            <span style="color:{% if h.response_time_ms < 1000 %}var(--green){% elif h.response_time_ms < 3000 %}var(--yellow){% else %}var(--red){% endif %}">
+              {{ h.response_time_ms }}ms
+            </span>
+          </td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.final_url }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── SSL Certificates ── -->
+{% if report.ssl_certificates %}
+<p class="section-title">&#128274; SSL Certificates</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Site</th><th>Days Until Expiry</th><th>Expiration Date</th><th>Issuer</th></tr>
+      </thead>
+      <tbody>
+        {% for s in report.ssl_certificates %}
+        <tr>
+          <td><strong>{{ s.site }}</strong></td>
+          <td>
+            <span style="font-weight:700;color:{% if s.days_remaining > 30 %}var(--green){% elif s.days_remaining > 7 %}var(--yellow){% else %}var(--red){% endif %}">
+              {{ s.days_remaining }} days
+            </span>
+          </td>
+          <td>{{ s.expires }}</td>
+          <td>{{ s.issuer }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set expiring = report.ssl_certificates|selectattr('days_remaining', 'lt', 30)|list %}
+  {% if expiring %}
+  <div style="padding:12px 20px;border-top:1px solid var(--border);background:rgba(250,204,21,.06)">
+    <strong style="color:var(--yellow)">&#9888; {{ expiring|length }} certificate{{ 's' if expiring|length != 1 else '' }} expiring within 30 days.</strong>
+    <span style="color:var(--muted);font-size:.78rem;margin-left:8px">Renew SSL certificates before they expire to avoid downtime.</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── PageSpeed Scores ── -->
+{% if report.pagespeed %}
+<p class="section-title">&#9889; PageSpeed Performance</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Site</th><th>Score</th><th>Strategy</th><th>FCP</th><th>LCP</th><th>CLS</th></tr>
+      </thead>
+      <tbody>
+        {% for p in report.pagespeed %}
+        <tr>
+          <td><strong>{{ p.site }}</strong></td>
+          <td>
+            <span style="font-size:1.1rem;font-weight:700;color:{% if p.score >= 90 %}var(--green){% elif p.score >= 50 %}var(--yellow){% else %}var(--red){% endif %}">
+              {{ p.score }}/100
+            </span>
+          </td>
+          <td>{{ p.strategy }}</td>
+          <td>{{ p.fcp }}</td>
+          <td>{{ p.lcp }}</td>
+          <td>{{ p.cls }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── DNS / Email Authentication Records ── -->
+{% if report.dns_records %}
+<p class="section-title">&#128225; DNS &amp; Email Authentication</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Site</th><th>SPF</th><th>DKIM</th><th>DMARC</th></tr>
+      </thead>
+      <tbody>
+        {% for d in report.dns_records %}
+        {% if d.get('spf') %}
+        <tr>
+          <td><strong>{{ d.site }}</strong></td>
+          <td><span style="color:{% if d.spf == 'success' %}var(--green){% else %}var(--red){% endif %}">{{ d.spf }}</span>
+            {% if d.spf_summary %}<br><small style="color:var(--muted)">{{ d.spf_summary }}</small>{% endif %}
+          </td>
+          <td><span style="color:{% if d.dkim == 'success' %}var(--green){% else %}var(--yellow){% endif %}">{{ d.dkim }}</span>
+            {% if d.dkim_summary %}<br><small style="color:var(--muted)">{{ d.dkim_summary }}</small>{% endif %}
+          </td>
+          <td><span style="color:{% if d.dmarc == 'success' %}var(--green){% else %}var(--red){% endif %}">{{ d.dmarc }}</span>
+            {% if d.dmarc_summary %}<br><small style="color:var(--muted)">{{ d.dmarc_summary }}</small>{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% if d.get('records') %}
+        <tr>
+          <td><strong>{{ d.site }}</strong></td>
+          <td colspan="3">
+            <strong>{{ d.task }}:</strong>
+            {% for rec in d.records %}<code style="font-size:.72rem;display:block;margin:2px 0">{{ rec[:120] }}</code>{% endfor %}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Email Delivery Stats ── -->
+{% if report.email_stats %}
+<p class="section-title">&#128231; Email Delivery Stats</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Task</th><th>Delivered</th><th>Opens</th><th>Bounces</th><th>Clicks</th><th>Recent Issues</th></tr>
+      </thead>
+      <tbody>
+        {% for e in report.email_stats %}
+        <tr>
+          <td><strong>{{ e.task }}</strong></td>
+          <td>{% if e.delivered is defined %}<span style="color:var(--green)">{{ e.delivered }}</span>{% else %}—{% endif %}</td>
+          <td>{{ e.get('opens', '—') }}</td>
+          <td>{% if e.bounces is defined %}<span style="color:{% if e.bounces == 0 %}var(--green){% else %}var(--red){% endif %}">{{ e.bounces }}</span>{% else %}—{% endif %}</td>
+          <td>{{ e.get('clicks', '—') }}</td>
+          <td>{% if e.recent_count is defined %}{{ e.recent_count }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Uptime Monitors ── -->
+{% if report.uptime_monitors %}
+<p class="section-title">&#128994; Uptime Monitors ({{ report.uptime_monitors|length }})</p>
+<div class="card" style="margin-bottom:24px">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Monitor Name</th><th>URL</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for u in report.uptime_monitors %}
+        <tr>
+          <td><strong>{{ u.name }}</strong></td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.url }}</td>
+          <td>
+            <span style="font-weight:600;color:{% if u.status == 'Up' %}var(--green){% else %}var(--red){% endif %}">
+              {% if u.status == 'Up' %}&#128994; Up{% else %}&#128308; Down{% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set down_monitors = report.uptime_monitors|selectattr('status', 'equalto', 'Down')|list %}
+  {% if down_monitors %}
+  <div style="padding:12px 20px;border-top:1px solid var(--border);background:rgba(248,113,113,.06)">
+    <strong style="color:var(--red)">&#128308; {{ down_monitors|length }} monitor{{ 's' if down_monitors|length != 1 else '' }} reporting DOWN.</strong>
+    <span style="color:var(--muted);font-size:.78rem;margin-left:8px">Investigate immediately — sites may be unreachable.</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ═══ Per-Site Breakdown ═══ -->
+<p class="section-title">&#127760; Per-Site Breakdown</p>
+<div class="site-summary-grid" style="margin-bottom:24px">
+  {% for site_name, site_runs in site_groups.items() %}
+  {% set s_ok = site_runs|selectattr('status', 'equalto', 'success')|list|length %}
+  {% set s_fail = site_runs|selectattr('status', 'in', ['failure', 'error'])|list|length %}
+  {% set s_warn = site_runs|selectattr('status', 'equalto', 'warning')|list|length %}
+  {% set s_skip = site_runs|selectattr('status', 'equalto', 'skipped')|list|length %}
+  {% set s_total = site_runs|length %}
+  {% set s_pct = (s_ok / s_total * 100)|int if s_total else 0 %}
+  <div class="card site-summary-card">
+    <div class="card-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <strong>{{ site_name }}</strong>
+        <span class="day-badge" style="background:{% if s_fail == 0 %}rgba(74,222,128,.15);color:var(--green){% else %}rgba(248,113,113,.15);color:var(--red){% endif %}">{{ s_pct }}%</span>
+      </div>
+      <div class="mini-bar-track" style="height:8px;border-radius:4px;margin-bottom:10px">
+        <div class="mini-bar-fill" style="width:{{ s_pct }}%;background:{% if s_fail == 0 %}var(--green){% else %}var(--yellow){% endif %};height:100%;border-radius:4px"></div>
+      </div>
+      <div style="display:flex;gap:12px;font-size:.78rem;margin-bottom:10px">
+        <span style="color:var(--green)">&#9989; {{ s_ok }}</span>
+        <span style="color:var(--red)">&#10060; {{ s_fail }}</span>
+        <span style="color:var(--yellow)">&#9888; {{ s_warn }}</span>
+        <span style="color:var(--muted)">&#9898; {{ s_skip }}</span>
+      </div>
+      <div style="font-size:.78rem">
+        {% for sr in site_runs %}
+        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-top:1px solid var(--border)">
+          <span>{% if sr.status == 'success' %}&#9989;{% elif sr.status in ['failure','error'] %}&#10060;{% elif sr.status == 'warning' %}&#9888;{% else %}&#9898;{% endif %}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ sr.task_name }}</span>
+          <span style="color:var(--muted);font-size:.72rem;white-space:nowrap">{{ sr.duration_ms or 0 }}ms</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ═══ Failed Checks ═══ -->
+{% set failed_runs = runs|selectattr('status', 'in', ['failure', 'error'])|list %}
+{% if failed_runs %}
+<p class="section-title">&#10060; Failed Checks ({{ failed_runs|length }})</p>
+{% for r in failed_runs %}
+{% set d = r._parsed_data %}
+{% set itype = r.integration_type or 'manual' %}
+{% set ilabel = integration_labels.get(itype, {}) %}
+<div class="card result-card result-fail" style="margin-bottom:12px">
+  <div class="card-body">
+    <div class="result-row" onclick="toggleDetail(this)" style="cursor:pointer">
+      <span class="result-status-icon">&#10060;</span>
+      <div class="result-info">
+        <strong>{{ r.task_name }}</strong>
+        <div class="result-meta">
+          {% if r.site %}<span>&#127760; {{ r.site.name }}</span>{% endif %}
+          <span class="task-badge{% if ilabel.get('auto') %} auto{% endif %}">{{ ilabel.get('icon','') }} {{ ilabel.get('label', itype) }}</span>
+          <span>&#9201; {{ r.duration_ms or 0 }}ms</span>
+          <span>{{ r.run_at.strftime('%H:%M:%S') if r.run_at else '' }}</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="result-badge fail">Failed</span>
+        <span class="expand-arrow">&#9660;</span>
+      </div>
+    </div>
+    <div class="result-expand" style="display:none">
+      {% if r.result_summary %}
+      <div class="result-detail fail-detail" style="margin-top:10px"><strong>Error:</strong> {{ r.result_summary }}</div>
+      {% endif %}
+      {% if d %}
+      <div class="detail-grid" style="margin-top:10px">
+        {% if d.get('status_code') %}<div class="detail-item"><span class="detail-key">HTTP Status</span><span class="detail-val">{{ d.status_code }}</span></div>{% endif %}
+        {% if d.get('response_time_ms') %}<div class="detail-item"><span class="detail-key">Response Time</span><span class="detail-val">{{ d.response_time_ms }}ms</span></div>{% endif %}
+        {% if d.get('error') %}<div class="detail-item detail-full"><span class="detail-key">Error Details</span><span class="detail-val" style="color:var(--red)">{{ d.error[:500] }}</span></div>{% endif %}
+        {% if d.get('url') %}<div class="detail-item"><span class="detail-key">URL</span><span class="detail-val">{{ d.url }}</span></div>{% endif %}
+        {% if d.get('hint') %}<div class="detail-item detail-full"><span class="detail-key">Hint</span><span class="detail-val" style="color:var(--yellow)">{{ d.hint }}</span></div>{% endif %}
+      </div>
+      {% endif %}
+      <div class="result-recommend" style="margin-top:10px">
+        <strong>&#128161; Recommendation:</strong>
+        {% if itype == 'website_health' %}Check that the site URL is correct and the server is running.
+        {% elif itype == 'ssl_check' %}Verify SSL is configured correctly. Consider renewing the certificate.
+        {% elif itype == 'wordpress' %}Confirm WordPress REST API is enabled and Application Password credentials are correct.
+        {% elif itype == 'dns_check' %}Check your domain's DNS TXT records for SPF, DKIM, and DMARC.
+        {% elif itype == 'email_service' %}Verify your email service API key is valid and has the correct permissions.
+        {% elif itype == 'pagespeed' %}Ensure your PageSpeed API key is valid. Check Google Cloud Console.
+        {% elif itype == 'link_check' %}Review broken links and update or remove them from your site.
+        {% elif itype == 'uptime' %}Check your UptimeRobot API key and monitor configurations.
+        {% else %}Review the error details above and check the integration configuration.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ═══ Warnings ═══ -->
+{% set warn_runs = runs|selectattr('status', 'equalto', 'warning')|list %}
+{% if warn_runs %}
+<p class="section-title">&#9888; Warnings ({{ warn_runs|length }})</p>
+{% for r in warn_runs %}
+{% set d = r._parsed_data %}
+{% set itype = r.integration_type or 'manual' %}
+{% set ilabel = integration_labels.get(itype, {}) %}
+<div class="card result-card result-warn" style="margin-bottom:12px">
+  <div class="card-body">
+    <div class="result-row" onclick="toggleDetail(this)" style="cursor:pointer">
+      <span class="result-status-icon">&#9888;&#65039;</span>
+      <div class="result-info">
+        <strong>{{ r.task_name }}</strong>
+        <div class="result-meta">
+          {% if r.site %}<span>&#127760; {{ r.site.name }}</span>{% endif %}
+          <span class="task-badge{% if ilabel.get('auto') %} auto{% endif %}">{{ ilabel.get('icon','') }} {{ ilabel.get('label', itype) }}</span>
+          <span>&#9201; {{ r.duration_ms or 0 }}ms</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="result-badge warn">Warning</span>
+        <span class="expand-arrow">&#9660;</span>
+      </div>
+    </div>
+    <div class="result-expand" style="display:none">
+      {% if r.result_summary %}<div class="result-detail warn-detail" style="margin-top:10px">{{ r.result_summary }}</div>{% endif %}
+      {% if d %}
+      <div class="detail-grid" style="margin-top:10px">
+        {% if d.get('days_remaining') is not none %}<div class="detail-item"><span class="detail-key">Days Until Expiry</span><span class="detail-val" style="color:var(--yellow)">{{ d.days_remaining }} days</span></div>{% endif %}
+        {% if d.get('issuer') %}<div class="detail-item"><span class="detail-key">Issuer</span><span class="detail-val">{{ d.issuer }}</span></div>{% endif %}
+        {% if d.get('score') is not none %}<div class="detail-item"><span class="detail-key">Performance Score</span><span class="detail-val" style="font-size:1.1rem;font-weight:700;color:{% if d.score >= 90 %}var(--green){% elif d.score >= 50 %}var(--yellow){% else %}var(--red){% endif %}">{{ d.score }}/100</span></div>{% endif %}
+        {% if d.get('fcp') %}<div class="detail-item"><span class="detail-key">FCP</span><span class="detail-val">{{ d.fcp }}</span></div>{% endif %}
+        {% if d.get('lcp') %}<div class="detail-item"><span class="detail-key">LCP</span><span class="detail-val">{{ d.lcp }}</span></div>{% endif %}
+        {% if d.get('cls') %}<div class="detail-item"><span class="detail-key">CLS</span><span class="detail-val">{{ d.cls }}</span></div>{% endif %}
+        {% if d.get('issues') %}<div class="detail-item detail-full"><span class="detail-key">Issues</span><ul class="detail-list">{% for issue in d.issues %}<li>{{ issue }}</li>{% endfor %}</ul></div>{% endif %}
+        {% if d.get('updates_available') is not none %}<div class="detail-item"><span class="detail-key">Plugin Updates</span><span class="detail-val" style="color:var(--yellow)">{{ d.updates_available }} available</span></div>{% endif %}
+        {% if d.get('status_code') %}<div class="detail-item"><span class="detail-key">HTTP Status</span><span class="detail-val">{{ d.status_code }}</span></div>{% endif %}
+        {% if d.get('response_time_ms') %}<div class="detail-item"><span class="detail-key">Response Time</span><span class="detail-val">{{ d.response_time_ms }}ms</span></div>{% endif %}
+        {% if d.get('hint') %}<div class="detail-item detail-full"><span class="detail-key">Hint</span><span class="detail-val" style="color:var(--yellow)">{{ d.hint }}</span></div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ═══ Passed Checks ═══ -->
+{% set ok_runs = runs|selectattr('status', 'equalto', 'success')|list %}
+{% if ok_runs %}
+<p class="section-title">&#9989; Passed Checks ({{ ok_runs|length }})</p>
+{% for r in ok_runs %}
+{% set d = r._parsed_data %}
+{% set itype = r.integration_type or 'manual' %}
+{% set ilabel = integration_labels.get(itype, {}) %}
+<div class="card result-card result-pass" style="margin-bottom:8px">
+  <div class="card-body" style="padding:12px 20px">
+    <div class="result-row" onclick="toggleDetail(this)" style="cursor:pointer">
+      <span class="result-status-icon">&#9989;</span>
+      <div class="result-info">
+        <strong>{{ r.task_name }}</strong>
+        <div class="result-meta">
+          {% if r.site %}<span>&#127760; {{ r.site.name }}</span>{% endif %}
+          <span class="task-badge{% if ilabel.get('auto') %} auto{% endif %}">{{ ilabel.get('icon','') }} {{ ilabel.get('label', itype) }}</span>
+          <span>&#9201; {{ r.duration_ms or 0 }}ms</span>
+          <span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.result_summary or '' }}</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="result-badge pass">Passed</span>
+        {% if d %}<span class="expand-arrow">&#9660;</span>{% endif %}
+      </div>
+    </div>
+    {% if d %}
+    <div class="result-expand" style="display:none">
+      <div class="detail-grid" style="margin-top:10px">
+        {% if d.get('status_code') %}<div class="detail-item"><span class="detail-key">HTTP Status</span><span class="detail-val" style="color:var(--green)">{{ d.status_code }}</span></div>{% endif %}
+        {% if d.get('response_time_ms') %}<div class="detail-item"><span class="detail-key">Response Time</span><span class="detail-val">{{ d.response_time_ms }}ms</span></div>{% endif %}
+        {% if d.get('final_url') %}<div class="detail-item detail-full"><span class="detail-key">Final URL</span><span class="detail-val">{{ d.final_url }}</span></div>{% endif %}
+        {% if d.get('content_length') %}<div class="detail-item"><span class="detail-key">Content Size</span><span class="detail-val">{{ (d.content_length / 1024)|round(1) }} KB</span></div>{% endif %}
+        {% if d.get('issuer') %}<div class="detail-item"><span class="detail-key">SSL Issuer</span><span class="detail-val">{{ d.issuer }}</span></div>{% endif %}
+        {% if d.get('expires') %}<div class="detail-item"><span class="detail-key">SSL Expires</span><span class="detail-val">{{ d.expires }}</span></div>{% endif %}
+        {% if d.get('days_remaining') is not none %}<div class="detail-item"><span class="detail-key">Days Remaining</span><span class="detail-val" style="color:var(--green)">{{ d.days_remaining }} days</span></div>{% endif %}
+        {% if d.get('checked') is not none %}<div class="detail-item"><span class="detail-key">Links Checked</span><span class="detail-val">{{ d.checked }}</span></div>{% endif %}
+        {% if d.get('score') is not none %}<div class="detail-item"><span class="detail-key">Performance Score</span><span class="detail-val" style="font-size:1.1rem;font-weight:700;color:{% if d.score >= 90 %}var(--green){% elif d.score >= 50 %}var(--yellow){% else %}var(--red){% endif %}">{{ d.score }}/100</span></div>{% endif %}
+        {% if d.get('strategy') %}<div class="detail-item"><span class="detail-key">Strategy</span><span class="detail-val">{{ d.strategy }}</span></div>{% endif %}
+        {% if d.get('fcp') %}<div class="detail-item"><span class="detail-key">FCP</span><span class="detail-val">{{ d.fcp }}</span></div>{% endif %}
+        {% if d.get('lcp') %}<div class="detail-item"><span class="detail-key">LCP</span><span class="detail-val">{{ d.lcp }}</span></div>{% endif %}
+        {% if d.get('cls') %}<div class="detail-item"><span class="detail-key">CLS</span><span class="detail-val">{{ d.cls }}</span></div>{% endif %}
+        {% if d.get('records') %}<div class="detail-item detail-full"><span class="detail-key">DNS Records</span><ul class="detail-list">{% for rec in d.records %}<li><code>{{ rec[:120] }}</code></li>{% endfor %}</ul></div>{% endif %}
+        {% if d.get('spf') %}<div class="detail-item"><span class="detail-key">SPF</span><span class="detail-val" style="color:{% if d.spf.get('status')=='success' %}var(--green){% else %}var(--red){% endif %}">{{ d.spf.get('summary','') }}</span></div>{% endif %}
+        {% if d.get('dkim') %}<div class="detail-item"><span class="detail-key">DKIM</span><span class="detail-val" style="color:{% if d.dkim.get('status')=='success' %}var(--green){% else %}var(--yellow){% endif %}">{{ d.dkim.get('summary','') }}</span></div>{% endif %}
+        {% if d.get('dmarc') %}<div class="detail-item"><span class="detail-key">DMARC</span><span class="detail-val" style="color:{% if d.dmarc.get('status')=='success' %}var(--green){% else %}var(--red){% endif %}">{{ d.dmarc.get('summary','') }}</span></div>{% endif %}
+        {% if d.get('total') is not none and d.get('plugins') %}
+        <div class="detail-item"><span class="detail-key">Total Plugins</span><span class="detail-val">{{ d.total }}</span></div>
+        {% if d.get('updates_available') is not none %}<div class="detail-item"><span class="detail-key">Updates Available</span><span class="detail-val" style="color:{% if d.updates_available == 0 %}var(--green){% else %}var(--yellow){% endif %}">{{ d.updates_available }}</span></div>{% endif %}
+        <div class="detail-item detail-full">
+          <span class="detail-key">Plugins</span>
+          <div class="detail-list-wrap">{% for p in d.plugins[:15] %}<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:.78rem;border-bottom:1px solid var(--border)"><span>{{ p.name }}</span><span style="color:var(--muted)">v{{ p.version }}{% if p.update %} <span style="color:var(--yellow)">&#8593; update</span>{% endif %}</span></div>{% endfor %}</div>
+        </div>
+        {% endif %}
+        {% if d.get('themes') %}
+        <div class="detail-item detail-full">
+          <span class="detail-key">Themes</span>
+          <div class="detail-list-wrap">{% for t in d.themes %}<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:.78rem"><span>{{ t.name }}</span><span style="color:var(--muted)">{{ t.status }}</span></div>{% endfor %}</div>
+        </div>
+        {% endif %}
+        {% if d.get('entries') is not none %}<div class="detail-item"><span class="detail-key">Sitemap Entries</span><span class="detail-val">{{ d.entries }}</span></div>{% endif %}
+        {% if d.get('delivered') is not none %}<div class="detail-item"><span class="detail-key">Delivered</span><span class="detail-val" style="color:var(--green)">{{ d.delivered }}</span></div>{% endif %}
+        {% if d.get('opens') is not none %}<div class="detail-item"><span class="detail-key">Opens</span><span class="detail-val">{{ d.opens }}</span></div>{% endif %}
+        {% if d.get('bounces') is not none %}<div class="detail-item"><span class="detail-key">Bounces</span><span class="detail-val" style="color:{% if d.bounces == 0 %}var(--green){% else %}var(--red){% endif %}">{{ d.bounces }}</span></div>{% endif %}
+        {% if d.get('monitors') %}
+        <div class="detail-item detail-full">
+          <span class="detail-key">Monitors</span>
+          <div class="detail-list-wrap">{% for m in d.monitors[:10] %}<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:.78rem;border-bottom:1px solid var(--border)"><span>{{ m.name }}</span><span style="color:{% if m.status == 2 %}var(--green){% else %}var(--red){% endif %}">{{ 'Up' if m.status == 2 else 'Down' }}</span></div>{% endfor %}</div>
+        </div>
+        {% endif %}
+        {% if d.get('title') and not d.get('plugins') %}<div class="detail-item"><span class="detail-key">Page Title</span><span class="detail-val">{{ d.title }}</span></div>{% endif %}
+        {% if d.get('description') %}<div class="detail-item detail-full"><span class="detail-key">Meta Description</span><span class="detail-val">{{ d.description }}</span></div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ═══ Skipped Checks ═══ -->
+{% set skip_runs = runs|selectattr('status', 'equalto', 'skipped')|list %}
+{% if skip_runs %}
+<p class="section-title">&#9898; Skipped / Pending ({{ skip_runs|length }})</p>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Status</th><th>Task</th><th>Type</th><th>Site</th><th>Reason</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for r in skip_runs %}
+        {% set itype = r.integration_type or 'manual' %}
+        {% set ilabel = integration_labels.get(itype, {}) %}
+        <tr>
+          <td><span class="status-dot skipped"></span>Skipped</td>
+          <td>{{ r.task_name }}</td>
+          <td><span class="task-badge{% if ilabel.get('auto') %} auto{% endif %}">{{ ilabel.get('icon','') }} {{ ilabel.get('label', itype) }}</span></td>
+          <td>{{ r.site.name if r.site else '—' }}</td>
+          <td>{{ r.result_summary or 'No configuration available' }}</td>
+          <td>
+            {% if itype == 'manual' %}<span style="font-size:.75rem;color:var(--muted)">Manual action</span>
+            {% else %}<a href="{{ url_for('integrations.index') }}" class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:.72rem">Configure</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ Full Results Table ═══ -->
+<p class="section-title" style="margin-top:24px">&#128203; Complete Run Log</p>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Status</th><th>Task</th><th>Type</th><th>Site</th><th>Result</th><th>Duration</th><th>Time</th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        {% set itype = r.integration_type or 'manual' %}
+        {% set ilabel = integration_labels.get(itype, {}) %}
+        <tr>
+          <td><span class="status-dot {{ r.status }}"></span>{{ r.status }}</td>
+          <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.task_name }}</td>
+          <td><span class="task-badge{% if ilabel.get('auto') %} auto{% endif %}" style="font-size:.65rem">{{ ilabel.get('icon','') }} {{ ilabel.get('label', itype) }}</span></td>
+          <td>{{ r.site.name if r.site else '—' }}</td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.result_summary or '' }}">{{ r.result_summary or '—' }}</td>
+          <td>{{ r.duration_ms or 0 }}ms</td>
+          <td style="white-space:nowrap">{{ r.run_at.strftime('%H:%M:%S') if r.run_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ Download Reports ═══ -->
+<div class="card" style="margin-top:24px;margin-bottom:32px">
+  <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <strong>&#128196; Export Report</strong>
+      <p style="margin:4px 0 0;font-size:.78rem;color:var(--muted)">Download a full report of all {{ total }} checks for {{ day }} (batch {{ batch_id[:8] }})</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a href="{{ url_for('integrations.download_report_csv', batch_id=batch_id) }}" class="btn btn-outline btn-sm" style="color:var(--teal);border-color:var(--teal)">&#128196; Download CSV</a>
+      <a href="{{ url_for('integrations.download_report_json', batch_id=batch_id) }}" class="btn btn-outline btn-sm" style="color:var(--purple);border-color:var(--purple)">&#128196; Download JSON</a>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleDetail(row){
+  var expand=row.parentElement.querySelector('.result-expand');
+  if(!expand)return;
+  var arrow=row.querySelector('.expand-arrow');
+  if(expand.style.display==='none'){
+    expand.style.display='block';
+    if(arrow)arrow.innerHTML='&#9650;';
+  }else{
+    expand.style.display='none';
+    if(arrow)arrow.innerHTML='&#9660;';
+  }
+}
+</script>
+{% endblock %}

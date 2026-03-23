@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Manage Users — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#128101; Manage Users</h1>
+    <p class="subtitle">View, activate/deactivate, and manage user roles</p>
+  </div>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline" style="font-size:.85rem">&#8592; Admin Dashboard</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);text-align:left">
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">ID</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">Name</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">Email</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">Role</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">Status</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">Sites</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">Integrations</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600">Joined</th>
+            <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-align:center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:10px 12px;color:var(--muted)">{{ user.id }}</td>
+            <td style="padding:10px 12px;font-weight:500">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="width:28px;height:28px;border-radius:50%;background:var(--purple);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">{{ user.name[0]|upper }}</span>
+                {{ user.name }}
+              </div>
+            </td>
+            <td style="padding:10px 12px;color:var(--muted)">{{ user.email }}</td>
+            <td style="padding:10px 12px">
+              {% if user.is_admin %}
+              <span style="background:rgba(239,68,68,.1);color:var(--red,#ef4444);padding:2px 10px;border-radius:4px;font-size:.75rem;font-weight:600">Admin</span>
+              {% else %}
+              <span style="background:var(--surface2);color:var(--muted);padding:2px 10px;border-radius:4px;font-size:.75rem">User</span>
+              {% endif %}
+            </td>
+            <td style="padding:10px 12px">
+              {% if user.is_active %}
+              <span style="color:var(--green)">&#9679; Active</span>
+              {% else %}
+              <span style="color:var(--red,#ef4444)">&#9679; Inactive</span>
+              {% endif %}
+            </td>
+            <td style="padding:10px 12px;text-align:center">{{ user.sites.count() }}</td>
+            <td style="padding:10px 12px;text-align:center">{{ user.integrations.filter_by(is_active=True).count() }}</td>
+            <td style="padding:10px 12px;color:var(--muted);font-size:.82rem">{{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}</td>
+            <td style="padding:10px 12px;text-align:center">
+              {% if user.id != current_user.id %}
+              <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+                <form method="POST" action="{{ url_for('admin.toggle_user', user_id=user.id) }}" style="margin:0">
+                  <button type="submit" class="btn btn-outline btn-sm"
+                          style="padding:4px 10px;font-size:.72rem;{% if user.is_active %}color:var(--red,#ef4444);border-color:var(--red,#ef4444){% else %}color:var(--green);border-color:var(--green){% endif %}">
+                    {{ 'Deactivate' if user.is_active else 'Activate' }}
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" style="margin:0">
+                  <button type="submit" class="btn btn-outline btn-sm"
+                          style="padding:4px 10px;font-size:.72rem;color:var(--purple);border-color:var(--purple)">
+                    {{ 'Revoke Admin' if user.is_admin else 'Make Admin' }}
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="margin:0"
+                      onsubmit="return confirm('Are you sure you want to permanently delete this user and all their data?')">
+                  <button type="submit" class="btn btn-outline btn-sm"
+                          style="padding:4px 10px;font-size:.72rem;color:var(--red,#ef4444);border-color:var(--red,#ef4444)">
+                    &#128465; Delete
+                  </button>
+                </form>
+              </div>
+              {% else %}
+              <span style="font-size:.78rem;color:var(--muted);font-style:italic">You</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

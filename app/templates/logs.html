@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>&#128196; Activity Logs</h1>
+</div>
+
+<!-- ═══ Filters ═══ -->
+<form class="filter-bar" method="GET">
+  <select name="day">
+    <option value="">All Days</option>
+    {% for d in day_order %}
+    <option value="{{ d }}" {{ 'selected' if day_filter == d else '' }}>{{ d }}</option>
+    {% endfor %}
+  </select>
+  <select name="status">
+    <option value="">All Statuses</option>
+    <option value="success" {{ 'selected' if status_filter == 'success' else '' }}>Success</option>
+    <option value="failure" {{ 'selected' if status_filter == 'failure' else '' }}>Failure</option>
+    <option value="warning" {{ 'selected' if status_filter == 'warning' else '' }}>Warning</option>
+    <option value="skipped" {{ 'selected' if status_filter == 'skipped' else '' }}>Skipped</option>
+  </select>
+  <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+  {% if day_filter or status_filter %}
+  <a href="{{ url_for('logs.index') }}" class="btn btn-outline btn-sm">Clear</a>
+  {% endif %}
+</form>
+
+<!-- ═══ Task Runs ═══ -->
+<p class="section-title">Task Run History</p>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Day</th>
+          <th>Task</th>
+          <th>Type</th>
+          <th>Result</th>
+          <th>Duration</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs.items %}
+        <tr>
+          <td><span class="status-dot {{ r.status }}"></span>{{ r.status }}</td>
+          <td>{{ r.day }}</td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ r.task_name }}">{{ r.task_name }}</td>
+          <td>{{ r.integration_type or '—' }}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ r.result_summary or '' }}">{{ r.result_summary or '—' }}</td>
+          <td>{{ r.duration_ms if r.duration_ms else '—' }}ms</td>
+          <td style="white-space:nowrap">{{ r.run_at.strftime('%b %d %H:%M') if r.run_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">No task runs recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if runs.pages > 1 %}
+  <div class="pagination">
+    {% if runs.has_prev %}
+    <a href="?page={{ runs.prev_num }}&day={{ day_filter }}&status={{ status_filter }}">&laquo; Prev</a>
+    {% endif %}
+    {% for p in runs.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        {% if p == runs.page %}
+        <span class="current">{{ p }}</span>
+        {% else %}
+        <a href="?page={{ p }}&day={{ day_filter }}&status={{ status_filter }}">{{ p }}</a>
+        {% endif %}
+      {% else %}
+      <span style="color:var(--muted)">&hellip;</span>
+      {% endif %}
+    {% endfor %}
+    {% if runs.has_next %}
+    <a href="?page={{ runs.next_num }}&day={{ day_filter }}&status={{ status_filter }}">Next &raquo;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ═══ Activity Log ═══ -->
+<p class="section-title">System Activity</p>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Category</th>
+          <th>Details</th>
+          <th>IP</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in activities %}
+        <tr>
+          <td>{{ a.action }}</td>
+          <td>{{ a.category or '—' }}</td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ a.details or '' }}">{{ a.details or '—' }}</td>
+          <td>{{ a.ip_address or '—' }}</td>
+          <td style="white-space:nowrap">{{ a.created_at.strftime('%b %d %H:%M') if a.created_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">No activity recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

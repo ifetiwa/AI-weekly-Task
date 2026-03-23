@@ -4,7 +4,7 @@ WEEKLY_CHECKLIST = {
     "Monday": {
         "label": "Websites & CMS",
         "tasks": [
-            "Check all P23 websites are live",
+            "Check all websites are live",
             "Open homepage, login, dashboard, and key pages",
             "Check SSL certificates (no warnings)",
             "Test forms (contact, signup, payments)",

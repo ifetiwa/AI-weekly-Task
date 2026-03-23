@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weekly Tech Checklist Dashboard</title>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #232635;
+      --border:    #2d3148;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --done-bg:   #0d2e1a;
+      --done-text: #4ade80;
+      --radius:    14px;
+      --shadow:    0 4px 24px rgba(0,0,0,.45);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .site-header {
+      background: linear-gradient(135deg, #1e2235 0%, #151827 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 28px 40px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .site-header h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -.3px;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .site-header .week-label {
+      font-size: .85rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .reset-btn {
+      background: #3f1a1a;
+      color: #f87171;
+      border: 1px solid #7f1d1d;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .reset-btn:hover { background: #5c2121; border-color: #b91c1c; }
+
+    /* ── Overall Stats Row ─────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      padding: 32px 40px 8px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--accent, #3b82f6);
+    }
+    .stat-card .stat-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--accent, #60a5fa);
+      line-height: 1;
+    }
+    .stat-card .stat-label {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .stat-card .stat-icon {
+      position: absolute;
+      right: 18px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 2rem;
+      opacity: .12;
+    }
+
+    /* ── Week Progress Bar (hero) ───────────────────────────── */
+    .week-progress {
+      margin: 24px 40px 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 28px;
+      box-shadow: var(--shadow);
+    }
+    .week-progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .82rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .week-progress-bar-track {
+      background: var(--surface2);
+      border-radius: 99px;
+      height: 14px;
+      overflow: hidden;
+    }
+    .week-progress-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981);
+      transition: width .6s ease;
+    }
+
+    /* ── Section Title ──────────────────────────────────────── */
+    .section-title {
+      padding: 32px 40px 12px;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    /* ── Days Grid ──────────────────────────────────────────── */
+    .days-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 20px;
+      padding: 0 40px;
+    }
+    .day-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Day Card Header ────────────────────────────────────── */
+    .day-card-header {
+      padding: 20px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .day-card-header .day-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent, #60a5fa);
+    }
+    .day-card-header .day-label {
+      font-size: .78rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .day-badge {
+      font-size: .78rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 99px;
+      white-space: nowrap;
+      background: var(--badge-bg, #172554);
+      color: var(--accent, #60a5fa);
+    }
+
+    /* ── Mini Progress Bar ──────────────────────────────────── */
+    .mini-progress-wrap { padding: 0 20px 14px; }
+    .mini-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: .75rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .mini-progress-track {
+      background: var(--surface2);
+      border-radius: 99px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .mini-progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent, #3b82f6);
+      transition: width .6s ease;
+    }
+    .mini-progress-fill.complete { background: #10b981; }
+
+    /* ── Task List ──────────────────────────────────────────── */
+    .task-list { flex: 1; padding: 0 12px 10px; }
+    .task-form { display: block; }
+    .task-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 8px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      color: var(--text);
+      font-size: .84rem;
+      transition: background .15s;
+      line-height: 1.4;
+    }
+    .task-btn:hover { background: var(--surface2); }
+    .task-btn.is-done { color: var(--muted); text-decoration: line-through; }
+    .task-btn.is-done .task-icon { color: #4ade80; }
+    .task-icon { font-size: 1rem; flex-shrink: 0; }
+    .task-text { flex: 1; }
+
+    /* ── Day Card Footer ────────────────────────────────────── */
+    .day-card-footer {
+      padding: 10px 20px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .complete-all-btn {
+      width: 100%;
+      padding: 9px;
+      border-radius: 8px;
+      border: 1px solid;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+      background: transparent;
+      border-color: var(--accent, #3b82f6);
+      color: var(--accent, #3b82f6);
+    }
+    .complete-all-btn:hover { opacity: .8; }
+    .complete-all-btn:disabled {
+      opacity: .35;
+      cursor: default;
+    }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 680px) {
+      .site-header, .stats-row, .days-grid,
+      .week-progress, .section-title {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Scroll anchor offset ───────────────────────────────── */
+    .anchor { scroll-margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header class="site-header">
+  <div>
+    <h1>&#128202; Weekly Tech Checklist Dashboard</h1>
+    <p class="week-label">{{ week_label }}</p>
+  </div>
+  <form method="POST" action="/reset"
+        onsubmit="return confirm('Reset all tasks to incomplete?')">
+    <button class="reset-btn" type="submit">&#8635; Reset All</button>
+  </form>
+</header>
+
+<!-- ═══════════════ OVERALL STATS ═══════════════ -->
+<div class="stats-row">
+  <div class="stat-card" style="--accent:#60a5fa;">
+    <span class="stat-value">{{ weekly.total }}</span>
+    <span class="stat-label">Total Tasks</span>
+    <span class="stat-icon">&#128203;</span>
+  </div>
+  <div class="stat-card" style="--accent:#4ade80;">
+    <span class="stat-value">{{ weekly.done }}</span>
+    <span class="stat-label">Completed</span>
+    <span class="stat-icon">&#9989;</span>
+  </div>
+  <div class="stat-card" style="--accent:#f87171;">
+    <span class="stat-value">{{ weekly.pending }}</span>
+    <span class="stat-label">Pending</span>
+    <span class="stat-icon">&#9200;</span>
+  </div>
+  <div class="stat-card" style="--accent:#a78bfa;">
+    <span class="stat-value">{{ weekly.percent }}%</span>
+    <span class="stat-label">Week Complete</span>
+    <span class="stat-icon">&#127919;</span>
+  </div>
+</div>
+
+<!-- ═══════════════ WEEK PROGRESS BAR ═══════════════ -->
+<div class="week-progress">
+  <div class="week-progress-label">
+    <span>Overall Weekly Progress</span>
+    <span>{{ weekly.done }} / {{ weekly.total }} tasks</span>
+  </div>
+  <div class="week-progress-bar-track">
+    <div class="week-progress-bar-fill" style="width: {{ weekly.percent }}%"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ DAY CARDS ═══════════════ -->
+<p class="section-title">Daily Breakdown</p>
+<div class="days-grid">
+  {% for day in day_order %}
+  {% set d      = weekly.days[day] %}
+  {% set colors = day_colors[day] %}
+  {% set is_all_done = (d.done == d.total) %}
+
+  <div class="day-card anchor" id="{{ day }}"
+       style="--accent:{{ colors.accent }}; --badge-bg:{{ colors.badge }};">
+
+    <!-- Header -->
+    <div class="day-card-header">
+      <div>
+        <div class="day-name">{{ day }}</div>
+        <div class="day-label">{{ d.label }}</div>
+      </div>
+      <span class="day-badge">
+        {% if is_all_done %}&#9989; Done{% else %}{{ d.done }}/{{ d.total }}{% endif %}
+      </span>
+    </div>
+
+    <!-- Mini progress -->
+    <div class="mini-progress-wrap">
+      <div class="mini-progress-meta">
+        <span>{{ d.percent }}% complete</span>
+        <span>{{ d.pending }} remaining</span>
+      </div>
+      <div class="mini-progress-track">
+        <div class="mini-progress-fill {{ 'complete' if is_all_done else '' }}"
+             style="width: {{ d.percent }}%"></div>
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="task-list">
+      {% for task, done in d.tasks.items() %}
+      <form class="task-form" method="POST"
+            action="/toggle/{{ day }}/{{ loop.index0 }}">
+        <button type="submit"
+                class="task-btn {{ 'is-done' if done else '' }}">
+          <span class="task-icon">{{ '✅' if done else '⬜' }}</span>
+          <span class="task-text">{{ task }}</span>
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+
+    <!-- Footer -->
+    <div class="day-card-footer">
+      <form method="POST" action="/complete-day/{{ day }}">
+        <button class="complete-all-btn" type="submit"
+                {{ 'disabled' if is_all_done else '' }}>
+          {{ '&#9989; All Done' if is_all_done else 'Mark All Complete' }}
+        </button>
+      </form>
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+
+</body>
+</html>

@@ -1,6 +1,11 @@
 # State files
 checklist_state.json
 
+# Environment
+.env
+.vercel
+instance/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -8,3 +13,4 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+.venv/

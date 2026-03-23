@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#9881; Settings</h1>
+    <p class="subtitle">Manage your custom tasks for each day of the week</p>
+  </div>
+</div>
+
+{% for day in days_data %}
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;font-size:1.15rem">&#128197; {{ day.name }} — <span style="color:var(--muted);font-weight:400">{{ day.label }}</span></h2>
+      <span class="day-badge" style="background:rgba(99,102,241,.1);color:var(--purple)">{{ day.default_tasks|length + day.custom_tasks|length }} tasks</span>
+    </div>
+
+    <!-- Default Tasks (read-only) -->
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Default Tasks</p>
+    {% for task in day.default_tasks %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--surface2);margin-bottom:4px">
+      <span style="color:var(--muted)">&#9679;</span>
+      <span style="flex:1;font-size:.88rem">{{ task }}</span>
+      <span style="font-size:.72rem;color:var(--muted);background:var(--surface);padding:2px 8px;border-radius:4px">Default</span>
+    </div>
+    {% endfor %}
+
+    <!-- Custom Tasks (editable) -->
+    {% if day.custom_tasks %}
+    <p style="font-size:.78rem;color:var(--muted);margin:16px 0 8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Custom Tasks</p>
+    {% for ct in day.custom_tasks %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(99,102,241,.06);margin-bottom:4px;border:1px solid rgba(99,102,241,.15)">
+      <span style="color:var(--purple)">&#9733;</span>
+      <span style="flex:1;font-size:.88rem">{{ ct.task_name }}</span>
+      <span style="font-size:.72rem;color:var(--purple);background:var(--surface);padding:2px 8px;border-radius:4px">{{ ct.integration_type }}</span>
+      <form method="POST" action="{{ url_for('settings.delete_task', task_id=ct.id) }}" style="margin:0"
+            onsubmit="return confirm('Remove this custom task?')">
+        <button type="submit" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:.72rem;color:var(--red);border-color:var(--red)">&#10005;</button>
+      </form>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Add New Task Form -->
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <form method="POST" action="{{ url_for('settings.add_task') }}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="day" value="{{ day.name }}">
+        <div style="flex:1;min-width:200px">
+          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">New Task Name</label>
+          <input type="text" name="task_name" class="form-input" placeholder="Enter task name..." required minlength="3" maxlength="300"
+                 style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.88rem">
+        </div>
+        <div style="min-width:160px">
+          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">Integration Type</label>
+          <select name="integration_type" class="form-input"
+                  style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.88rem">
+            {% for itype in integration_types %}
+            <option value="{{ itype.value }}">{{ itype.icon }} {{ itype.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="padding:8px 16px;white-space:nowrap">&#10010; Add Task</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

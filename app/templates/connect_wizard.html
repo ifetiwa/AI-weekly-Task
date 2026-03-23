@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Connect {{ info.label }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('integrations.index') }}" class="back-link">&larr; Back to Integrations</a>
+    <h1>{{ info.icon }} Connect {{ info.label }}</h1>
+    <p class="subtitle">Follow the steps below to connect your {{ info.label }} account</p>
+  </div>
+</div>
+
+<div class="connect-wizard">
+  <!-- ═══ Step 1 — Open Provider Dashboard ═══ -->
+  <div class="card connect-step" style="margin-bottom:20px">
+    <div class="card-body">
+      <div class="step-header">
+        <span class="step-number">1</span>
+        <div>
+          <h3>Sign in to {{ info.label }}</h3>
+          <p style="color:var(--muted);font-size:.82rem;margin-top:2px">
+            Open the {{ info.label }} dashboard and sign in to your account.
+            Navigate to your API keys or credentials section.
+          </p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;margin-left:46px">
+        {% if info.get('setup_url') %}
+        <a href="{{ info.setup_url }}" target="_blank" rel="noopener"
+           class="btn btn-primary" id="open-provider-btn">
+          &#128279; Open {{ info.label }} Dashboard
+        </a>
+        {% endif %}
+        {% if info.get('docs_url') %}
+        <a href="{{ info.docs_url }}" target="_blank" rel="noopener" class="btn btn-outline">
+          &#128214; API Documentation
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Step 2 — Get Your Credentials ═══ -->
+  <div class="card connect-step" style="margin-bottom:20px">
+    <div class="card-body">
+      <div class="step-header">
+        <span class="step-number">2</span>
+        <div>
+          <h3>Copy Your API Credentials</h3>
+          <p style="color:var(--muted);font-size:.82rem;margin-top:2px">
+            {% if service_type == 'sendgrid' %}
+              In SendGrid: Settings &rarr; API Keys &rarr; Create API Key. Select "Full Access"
+              or "Restricted Access" with Mail Send permissions. Copy the key.
+            {% elif service_type == 'mailgun' %}
+              In Mailgun: Settings &rarr; API Security &rarr; copy your Private API Key.
+              Also note your sending domain.
+            {% elif service_type == 'uptimerobot' %}
+              In UptimeRobot: My Settings &rarr; API Settings &rarr; copy your Main API Key
+              or create a Read-Only API Key.
+            {% elif service_type == 'pagespeed' %}
+              In Google Cloud Console: APIs &amp; Services &rarr; Credentials &rarr;
+              Create Credentials &rarr; API Key. Copy the key.
+            {% else %}
+              Copy your API key or credentials from the provider's dashboard.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Step 3 — Paste In ═══ -->
+  <div class="card connect-step">
+    <div class="card-body">
+      <div class="step-header">
+        <span class="step-number">3</span>
+        <div>
+          <h3>Paste Your Credentials Below</h3>
+          <p style="color:var(--muted);font-size:.82rem;margin-top:2px">
+            Paste the API key you copied in step 2. We will securely encrypt and store it.
+          </p>
+        </div>
+      </div>
+
+      <form method="POST" action="{{ callback_url }}" style="margin-top:16px;margin-left:46px">
+        {% for field in info.get('fields', []) %}
+        <div class="form-group">
+          <label for="{{ field.name }}">{{ field.label }}</label>
+          {% if field.type == 'textarea' %}
+          <textarea id="{{ field.name }}" name="{{ field.name }}" class="form-control"
+                    placeholder="{{ field.label }}" required></textarea>
+          {% else %}
+          <input type="{{ field.type }}" id="{{ field.name }}" name="{{ field.name }}"
+                 class="form-control" placeholder="{{ field.label }}" required>
+          {% endif %}
+        </div>
+        {% endfor %}
+
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <button type="submit" class="btn btn-primary">
+            &#128274; Connect {{ info.label }}
+          </button>
+          <span style="font-size:.75rem;color:var(--muted)">
+            &#128272; Credentials are encrypted before storage
+          </span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══ Webhook Info ═══ -->
+  <div class="card" style="margin-top:20px;border-left:4px solid var(--accent)">
+    <div class="card-body">
+      <h3 style="font-size:.9rem;margin-bottom:8px">&#128268; Webhook Callback URL</h3>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">
+        If you prefer, you can POST credentials directly to this callback URL from external
+        tools or automation scripts. Pass the field values as form data or JSON.
+      </p>
+      <div style="display:flex;align-items:center;gap:8px">
+        <code class="webhook-url" id="webhook-url">{{ callback_url }}</code>
+        <button type="button" class="btn btn-outline btn-sm" onclick="copyWebhook()" id="copy-btn">
+          &#128203; Copy
+        </button>
+      </div>
+      <p style="font-size:.72rem;color:var(--muted);margin-top:6px">
+        Required fields:
+        {% for field in info.get('fields', []) %}
+          <code>{{ field.name }}</code>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyWebhook() {
+  const url = document.getElementById('webhook-url').textContent;
+  navigator.clipboard.writeText(url).then(function() {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(function() { btn.innerHTML = '&#128203; Copy'; }, 2000);
+  });
+}
+// Track when provider tab is opened
+const openBtn = document.getElementById('open-provider-btn');
+if (openBtn) {
+  openBtn.addEventListener('click', function() {
+    this.innerHTML = '&#9989; Opened — switch to the tab';
+    this.classList.remove('btn-primary');
+    this.classList.add('btn-success');
+  });
+}
+</script>
+{% endblock %}
