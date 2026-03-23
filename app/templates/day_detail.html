@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% block title %}{{ day }} — {{ day_data.label }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('dashboard.index') }}" class="back-link">&larr; Dashboard</a>
+    <h1 style="color:{{ color }}">{{ day }}</h1>
+    <p class="subtitle">{{ day_data.label }} — {{ tasks|length }} tasks</p>
+  </div>
+</div>
+
+<!-- ═══ Day Stats ═══ -->
+<div class="stats-row">
+  <div class="stat-card" style="--card-accent:{{ color }}">
+    <div class="stat-value">{{ total_runs }}</div>
+    <div class="stat-label">Total Runs</div>
+    <span class="stat-icon">&#128202;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--green)">
+    <div class="stat-value">{{ success_runs }}</div>
+    <div class="stat-label">Passed</div>
+    <span class="stat-icon">&#9989;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--red)">
+    <div class="stat-value">{{ failure_runs }}</div>
+    <div class="stat-label">Failed</div>
+    <span class="stat-icon">&#10060;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--yellow)">
+    <div class="stat-value">{{ warning_runs }}</div>
+    <div class="stat-label">Warnings</div>
+    <span class="stat-icon">&#9888;</span>
+  </div>
+  <div class="stat-card" style="--card-accent:var(--muted)">
+    <div class="stat-value">{{ avg_duration }}ms</div>
+    <div class="stat-label">Avg Duration</div>
+    <span class="stat-icon">&#9201;</span>
+  </div>
+</div>
+
+<!-- ═══ Multi-Site Runner ═══ -->
+{% if sites %}
+<div class="card" style="margin-bottom:24px">
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('integrations.run_day', day=day) }}" class="multisite-form">
+      <input type="hidden" name="return_to" value="day_detail">
+      <div class="multisite-row">
+        <div class="multisite-left">
+          <strong>&#9654; Run All {{ day }} Checks</strong>
+          <span class="subtitle" style="margin-left:8px;font-size:.78rem">Select sites to check:</span>
+        </div>
+        <div class="multisite-right">
+          {% if sites|length > 1 %}
+          <label class="site-check" style="font-weight:600;color:var(--accent)">
+            <input type="checkbox" id="select-all-sites"> Select All
+          </label>
+          {% endif %}
+          {% for s in sites %}
+          <label class="site-check">
+            <input type="checkbox" name="site_ids" value="{{ s.id }}" class="site-cb">
+            {{ s.name }}
+          </label>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto">
+            &#9654; Run on Selected Sites
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ Per-Site Summary ═══ -->
+{% if site_summaries %}
+<p class="section-title">&#127760; Per-Site Status</p>
+<div class="site-summary-grid">
+  {% for ss in site_summaries %}
+  <div class="card site-summary-card">
+    <div class="card-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <strong>{{ ss.site.name }}</strong>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:2px">{{ ss.site.url }}</div>
+        </div>
+        <span class="day-badge" style="background:{{ color }}22;color:{{ color }}">{{ ss.pct }}%</span>
+      </div>
+      <div class="mini-bar-track" style="height:8px;border-radius:4px;margin-bottom:10px">
+        <div class="mini-bar-fill" style="width:{{ ss.pct }}%;background:{{ color }};height:100%;border-radius:4px"></div>
+      </div>
+      <div style="display:flex;gap:12px;font-size:.78rem">
+        <span style="color:var(--green)">&#9989; {{ ss.success }}</span>
+        <span style="color:var(--red)">&#10060; {{ ss.failure }}</span>
+        <span style="color:var(--yellow)">&#9888; {{ ss.warning }}</span>
+        <span style="color:var(--muted)">&#9898; {{ ss.skipped }}</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ═══ Task-by-Task Detail ═══ -->
+<p class="section-title">&#128203; Task Details</p>
+{% for td in task_details %}
+<div class="card task-detail-card" style="margin-bottom:16px">
+  <div class="card-header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="task-badge {{ 'auto' if td.integration_info.get('auto') else 'manual' }}" style="font-size:.72rem">
+        {{ td.integration_info.get('icon','') }} {{ td.integration_info.get('label','') }}
+      </span>
+      <h2 style="font-size:.9rem">{{ td.name }}</h2>
+    </div>
+    {% if td.integration_type != "manual" and sites %}
+    <form method="POST" action="{{ url_for('integrations.run_task', day=day, task_index=loop.index0) }}" style="display:flex;gap:6px;align-items:center;margin:0">
+      <input type="hidden" name="return_to" value="day_detail">
+      {% for s in sites %}
+      <label class="site-check-sm">
+        <input type="checkbox" name="site_ids" value="{{ s.id }}"> {{ s.name }}
+      </label>
+      {% endfor %}
+      <button type="submit" class="task-run-btn">&#9654; Run</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="card-body" style="padding:12px 20px">
+    {% if td.integration_type == "manual" %}
+    <p style="color:var(--muted);font-size:.82rem">&#128100; This task requires manual verification.</p>
+    {% elif not sites %}
+    <p style="color:var(--muted);font-size:.82rem">No sites configured. <a href="{{ url_for('integrations.add_site') }}" style="color:var(--accent)">Add a site</a> to run this check.</p>
+    {% else %}
+    <!-- Per-site results table -->
+    <table class="setup-table">
+      <thead>
+        <tr>
+          <th>Site</th>
+          <th>Status</th>
+          <th>Result</th>
+          <th>Duration</th>
+          <th>Last Run</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sr in td.site_results %}
+        <tr>
+          <td>
+            <strong>{{ sr.site.name }}</strong>
+            <span style="color:var(--muted);font-size:.72rem;margin-left:6px">{{ sr.site.url }}</span>
+          </td>
+          <td>
+            {% if sr.run %}
+            <span class="status-dot {{ sr.run.status }}"></span>{{ sr.run.status }}
+            {% else %}
+            <span style="color:var(--muted)">Not run</span>
+            {% endif %}
+          </td>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ sr.run.result_summary or '' if sr.run else '' }}">
+            {{ sr.run.result_summary or '—' if sr.run else '—' }}
+          </td>
+          <td>{{ (sr.run.duration_ms|string ~ 'ms') if sr.run and sr.run.duration_ms else '—' }}</td>
+          <td style="white-space:nowrap">{{ sr.run.run_at.strftime('%b %d %H:%M') if sr.run and sr.run.run_at else '—' }}</td>
+        </tr>
+        {% if sr.result_data %}
+        <!-- Expandable details row -->
+        {% if sr.result_data.get('broken') %}
+        <tr>
+          <td colspan="5" style="padding:6px 20px;background:var(--surface2)">
+            <div style="font-size:.78rem;color:var(--red)">
+              <strong>Broken links found:</strong>
+              <ul style="list-style:none;padding:0;margin:4px 0 0">
+                {% for bl in sr.result_data.broken %}
+                <li style="padding:2px 0">&#10060; {{ bl.url }} &mdash; {{ bl.status }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+        {% if sr.result_data.get('status_code') %}
+        <tr>
+          <td colspan="5" style="padding:4px 20px;background:var(--surface2);font-size:.75rem;color:var(--muted)">
+            HTTP {{ sr.result_data.status_code }}
+            {% if sr.result_data.get('response_time_ms') %} &bull; {{ sr.result_data.response_time_ms }}ms{% endif %}
+            {% if sr.result_data.get('final_url') %} &bull; Final: {{ sr.result_data.final_url }}{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% if sr.result_data.get('days_remaining') is not none and sr.result_data.get('days_remaining') is defined %}
+        <tr>
+          <td colspan="5" style="padding:4px 20px;background:var(--surface2);font-size:.75rem;color:var(--muted)">
+            SSL expires in {{ sr.result_data.days_remaining }} days &bull; {{ sr.result_data.get('expires', '') }}
+          </td>
+        </tr>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if td.no_site_run %}
+    <div style="margin-top:8px;font-size:.78rem;color:var(--muted)">
+      Last run (no site): <span class="status-dot {{ td.no_site_run.status }}"></span>{{ td.no_site_run.status }}
+      — {{ td.no_site_run.result_summary or '' }}
+      <span style="margin-left:8px">{{ td.no_site_run.run_at.strftime('%b %d %H:%M') if td.no_site_run.run_at else '' }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- ═══ Broken Links Summary ═══ -->
+{% if broken_links %}
+<p class="section-title">&#128279; Broken Links Found</p>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Status</th>
+          <th>Site</th>
+          <th>Detected</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bl in broken_links %}
+        <tr>
+          <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <a href="{{ bl.url }}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">{{ bl.url }}</a>
+          </td>
+          <td><span style="color:var(--red)">{{ bl.status }}</span></td>
+          <td>{{ bl.site }}</td>
+          <td style="white-space:nowrap">{{ bl.checked_at.strftime('%b %d %H:%M') if bl.checked_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ Run History ═══ -->
+{% if recent_day_runs %}
+<p class="section-title">&#128196; Run History</p>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Task</th>
+          <th>Site</th>
+          <th>Result</th>
+          <th>Duration</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent_day_runs %}
+        <tr>
+          <td><span class="status-dot {{ r.status }}"></span>{{ r.status }}</td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.task_name }}</td>
+          <td>{{ r.site.name if r.site else '—' }}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ r.result_summary or '' }}">{{ r.result_summary or '—' }}</td>
+          <td>{{ r.duration_ms or '—' }}ms</td>
+          <td style="white-space:nowrap">{{ r.run_at.strftime('%b %d %H:%M') if r.run_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ Day Navigation ═══ -->
+<div class="day-nav">
+  {% for d in day_order %}
+  <a href="{{ url_for('dashboard.day_detail', day=d) }}"
+     class="day-nav-item {{ 'active' if d == day else '' }}"
+     style="{{ 'border-color:' ~ color if d == day else '' }}">
+    {{ d[:3] }}
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Select All toggle
+const selAll = document.getElementById('select-all-sites');
+if (selAll) {
+  selAll.addEventListener('change', function() {
+    document.querySelectorAll('.multisite-form .site-cb').forEach(cb => {
+      cb.checked = selAll.checked;
+    });
+  });
+}
+// Auto-dismiss flash messages
+document.querySelectorAll('.flash').forEach(el => {
+  setTimeout(() => el.style.display = 'none', 8000);
+});
+</script>
+{% endblock %}

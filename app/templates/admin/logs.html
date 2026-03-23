@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Activity Logs — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>&#128196; System Activity Logs</h1>
+    <p class="subtitle">All activity across every user in the system</p>
+  </div>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline" style="font-size:.85rem">&#8592; Admin Dashboard</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {% if logs.items %}
+    {% for log in logs.items %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--surface2);margin-bottom:4px">
+      <span style="font-size:.78rem;color:var(--muted);min-width:130px">{{ log.created_at.strftime('%b %d, %H:%M') if log.created_at else '' }}</span>
+      <span style="font-size:.75rem;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,.1);color:var(--purple);min-width:70px;text-align:center">{{ log.category or 'system' }}</span>
+      <span style="flex:1;font-size:.85rem">{{ log.action }}</span>
+      <span style="font-size:.78rem;color:var(--muted)">{{ log.owner.name if log.owner else 'System' }}</span>
+      {% if log.ip_address %}
+      <span style="font-size:.72rem;color:var(--muted);background:var(--surface);padding:2px 8px;border-radius:4px">{{ log.ip_address }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <!-- Pagination -->
+    {% if logs.pages > 1 %}
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      {% if logs.has_prev %}
+      <a href="{{ url_for('admin.logs', page=logs.prev_num) }}" class="btn btn-outline btn-sm" style="padding:6px 14px;font-size:.82rem">&#8592; Previous</a>
+      {% endif %}
+      <span style="padding:6px 14px;font-size:.82rem;color:var(--muted)">Page {{ logs.page }} of {{ logs.pages }}</span>
+      {% if logs.has_next %}
+      <a href="{{ url_for('admin.logs', page=logs.next_num) }}" class="btn btn-outline btn-sm" style="padding:6px 14px;font-size:.82rem">Next &#8594;</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <p style="color:var(--muted);text-align:center;padding:32px 0">No activity logs found.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
